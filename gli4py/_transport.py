@@ -25,7 +25,7 @@ from uplink import (
 from .error_handling import APIClientError, AuthenticationError, raise_for_status
 
 
-class GLinetTransport(Consumer):
+class GLinetTransport(Consumer):  # type: ignore[misc]
     """JSON-RPC transport for the GL.iNet API.
 
     Owns the uplink client, request methods, ``sid`` state and the login flow.
@@ -43,7 +43,7 @@ class GLinetTransport(Consumer):
         super().__init__(client=client, **kwargs)
 
     @staticmethod
-    def build_sid_payload(method: str, params: list, sid: str | None = None) -> dict:
+    def build_sid_payload(method: str, params: list[Any], sid: str | None = None) -> dict[str, Any]:
         """Build an authenticated JSON-RPC payload.
 
         Does not mutate ``params``: the session id is prepended into a new list.
@@ -56,7 +56,7 @@ class GLinetTransport(Consumer):
         }
 
     @staticmethod
-    def build_no_auth_payload(method: str, params: dict) -> dict:
+    def build_no_auth_payload(method: str, params: dict[str, Any]) -> dict[str, Any]:
         """Build an unauthenticated JSON-RPC payload (challenge / login)."""
         return {
             "method": method,
@@ -65,26 +65,26 @@ class GLinetTransport(Consumer):
             "id": 0,
         }
 
-    @response_handler(raise_for_status)
-    @json
-    @post("")
-    @timeout(2)
+    @response_handler(raise_for_status)  # type: ignore[untyped-decorator]
+    @json  # type: ignore[untyped-decorator]
+    @post("")  # type: ignore[untyped-decorator]
+    @timeout(2)  # type: ignore[untyped-decorator]
     async def request(self, data: Body) -> Any:
         """Make a JSON-RPC request to the router (2s timeout)."""
 
-    @response_handler(raise_for_status)
-    @json
-    @post("")
-    @timeout(5)
+    @response_handler(raise_for_status)  # type: ignore[untyped-decorator]
+    @json  # type: ignore[untyped-decorator]
+    @post("")  # type: ignore[untyped-decorator]
+    @timeout(5)  # type: ignore[untyped-decorator]
     async def request_long_timeout(self, data: Body) -> Any:
         """Make a JSON-RPC request to the router (5s timeout)."""
 
-    async def _challenge(self, username: str) -> dict:
+    async def _challenge(self, username: str) -> Any:
         """Request a login challenge to start the login process."""
         challenge_data = self.build_no_auth_payload("challenge", {"username": username})
         return await self.request(challenge_data)
 
-    async def _get_sid(self, username: str, hsh: str) -> dict:
+    async def _get_sid(self, username: str, hsh: str) -> Any:
         """Exchange the computed hash for a session id."""
         login_data = self.build_no_auth_payload("login", {"username": username, "hash": hsh})
         return await self.request(login_data)

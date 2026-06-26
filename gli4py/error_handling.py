@@ -1,5 +1,7 @@
 """This module contains custom exceptions and a function to handle API response status codes."""
 
+from typing import Any
+
 from aiohttp import ClientResponse
 
 
@@ -23,7 +25,7 @@ class TokenError(AuthenticationError):
     """Should be raised when the token is invalid or expired"""
 
 
-async def raise_for_status(response: ClientResponse) -> dict:
+async def raise_for_status(response: ClientResponse) -> Any:
     """Checks whether or not the response was successful."""
 
     # 1. Safely read the body as JSON, falling back to text if it's HTML
