@@ -14,8 +14,8 @@ I thought it would be handy to develop a python 3 wrapper for the API for easy i
 1. Clone the repo
 2. Ensure you have Python 3.11 or greater (`python3 -V`) and install [uv](https://docs.astral.sh/uv/).
 3. `uv sync` — creates the in-project `.venv` and installs the runtime + dev dependencies.
-4. To run tests, create a file called `router_pwd` in the repo root containing the router password.
-   The tests run against a **live router** (default `192.168.8.1`), so a reachable GL.iNet device is required.
+4. The tests run against a **live router**, so copy `.env.example` to `.env` and set at least
+   `GLINET_PASSWORD` (and `GLINET_HOST` if not `192.168.8.1`). Without it the live suite is skipped.
 5. `uv run pytest -s` to see responses.
 6. Build with `uv build`. Releases publish to PyPI automatically on a GitHub Release (trusted publishing).
 

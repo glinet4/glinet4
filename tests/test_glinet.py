@@ -1,14 +1,41 @@
-"""Tests for the GLinet router API using gli4py, must be run against a GLinet router."""
+"""Live tests for the GLinet router API; must be run against a real GLinet router.
+
+Configuration comes from environment variables (e.g. a local ``.env`` file, see
+``.env.example``): ``GLINET_HOST`` (default ``http://192.168.8.1``),
+``GLINET_USERNAME`` (default ``root``), ``GLINET_PASSWORD`` (required), and
+``GLINET_RUN_DISRUPTIVE`` (set truthy to run reboot / VPN-toggle tests).
+Without ``GLINET_PASSWORD`` the whole live suite is skipped.
+"""
 
 import asyncio
+import os
+
+from dotenv import load_dotenv
 import pytest
 from semver import Version
+
 from gli4py.enums import TailscaleConnection
 from gli4py.error_handling import NonZeroResponse
 from gli4py.glinet import GLinet, NEW_VPN_CLIENT_VERSION
 
-router = GLinet(base_url="http://192.168.0.1/rpc")
-PERFORM_DISTRUPTIVE_TESTS = False
+load_dotenv()
+
+GLINET_HOST = os.environ.get("GLINET_HOST", "http://192.168.8.1")
+GLINET_USERNAME = os.environ.get("GLINET_USERNAME", "root")
+GLINET_PASSWORD = os.environ.get("GLINET_PASSWORD")
+PERFORM_DISTRUPTIVE_TESTS = os.environ.get("GLINET_RUN_DISRUPTIVE", "").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+
+# Every test below talks to a real router; skip the module without credentials.
+pytestmark = pytest.mark.skipif(
+    not GLINET_PASSWORD,
+    reason="set GLINET_PASSWORD (e.g. in a .env file) to run the live router tests",
+)
+
+router = GLinet(base_url=f"{GLINET_HOST}/rpc")
 
 models = [
     "mt1300",
@@ -61,10 +88,8 @@ async def test_router_reachable() -> None:
 @pytest.mark.asyncio
 async def test_login() -> None:
     """Test logging into the router."""
-    with open("router_pwd", "r", encoding="utf-8") as file:
-        pwd = str(file.read())
     assert not router.logged_in
-    await router.login("root", pwd)
+    await router.login(GLINET_USERNAME, GLINET_PASSWORD)
     assert router.logged_in
     print(router.sid)
 
