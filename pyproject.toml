@@ -33,6 +33,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["gli4py"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"gli4py/py.typed" = "gli4py/py.typed"
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 
