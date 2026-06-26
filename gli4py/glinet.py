@@ -1,251 +1,155 @@
-"""This module provides an asynchronous client for the GL-inet router API using uplink."""
+"""Asynchronous client for the GL.iNet router API.
+
+``GLinet`` is the API/protocol layer: thin methods that build JSON-RPC params,
+delegate I/O to a :class:`gli4py._transport.GLinetTransport`, and shape the
+responses. It owns protocol knowledge (firmware-version VPN routing) and
+higher-level orchestration (client filtering, wifi reshaping, the tailscale
+connection state machines) but performs no I/O itself.
+"""
 
 import asyncio
-import hashlib
 from typing import Any
 
 import pydantic
-from passlib.hash import md5_crypt, sha256_crypt, sha512_crypt
-from requests import Response, exceptions
 from semver import Version
-from uplink import AiohttpClient, Body, Consumer, json, post, response_handler, timeout
+from uplink import AiohttpClient
 
 from gli4py.enums import TailscaleConnection
 
-from .error_handling import (  # , timeout_error
-    APIClientError,
-    AuthenticationError,
-    raise_for_status,
-)
+from ._transport import GLinetTransport
+from .error_handling import APIClientError
 
 # Force Pydantic to resolve its lazy imports to prevent HA event loop blocking
 _ = pydantic.BaseModel
-
 
 # typical base url http://192.168.8.1/rpc
 NEW_VPN_CLIENT_VERSION = Version(4, 8, 0, 0)
 
 
-class GLinet(Consumer):
-    """A Python Client for the GL-inet API."""
-
-    _firmware_version: Version | None = None
+class GLinet:
+    """A Python client for the GL.iNet API (API/protocol layer)."""
 
     def __init__(
         self,
         sid: str | None = None,
         client: AiohttpClient | None = None,
-        **kwargs,
-    ):
-        self.sid: str = sid
-        self._logged_in = self.sid is not None
-        client = client or AiohttpClient()
+        **kwargs: Any,
+    ) -> None:
+        self._transport = GLinetTransport(sid=sid, client=client, **kwargs)
+        self._firmware_version: Version | None = None
 
-        # initialise the super class
-        super().__init__(client=client, **kwargs)
+    # --- session / auth delegation -------------------------------------------
 
-    @staticmethod
-    def gen_sid_payload(method: str, params: list, sid: str = None) -> dict:
-        """Generates a payload for the GL-inet API with a session ID."""
-        # headers = {'glinet': 1}
-        params.insert(0, sid)
-        payload = {
-            "method": method,
-            "jsonrpc": "2.0",
-            "params": params,
-            "id": 0,
-        }
-        return payload
+    @property
+    def sid(self) -> str | None:
+        """The current session id (delegated to the transport)."""
+        return self._transport.sid
 
-    @staticmethod
-    def gen_no_auth_payload(method: str, params: dict) -> dict:
-        """Generates a payload for the GL-inet API without session ID authentication."""
-        # headers = {'glinet': 1}
-        payload = {
-            "method": method,
-            "jsonrpc": "2.0",
-            "params": params,
-            "id": 0,
-        }
-        return payload
+    @sid.setter
+    def sid(self, value: str | None) -> None:
+        self._transport.sid = value
 
-    @response_handler(raise_for_status)
-    @json
-    @post("")
-    @timeout(2)
-    async def _request(self, data: Body) -> Response:
-        """Base method to make a request to the GL-inet API."""
-
-    @response_handler(raise_for_status)
-    @json
-    @post("")
-    @timeout(5)
-    async def _request_long_timeout(self, data: Body) -> Response:
-        """Base method to make a request to the GL-inet API with a longer timeout."""
-
-    async def _challenge(self, username) -> dict:
-        """Requests a challenge from the GL-inet API to start the login process."""
-        challenge_data = self.gen_no_auth_payload("challenge", {"username": username})
-        return await self._request(challenge_data)
-
-    async def _get_sid(self, username: str, hsh) -> dict:
-        """Requests a session ID from the GL-inet API using the provided username and hash."""
-        login_data = self.gen_no_auth_payload(
-            "login", {"username": username, "hash": hsh}
-        )
-        return await self._request(login_data)
-
-    async def router_reachable(self, username: str = "root") -> bool:
-        """Checks if the router is reachable by attempting to get a challenge."""
-        try:
-            res = await self._challenge(username)
-            if res:
-                return True
-        except APIClientError:
-            return False
-        return False
+    @property
+    def logged_in(self) -> bool:
+        """Whether the client has a valid session (delegated to the transport)."""
+        return self._transport.logged_in
 
     async def login(self, username: str, password: str) -> None:
-        """Logs in to the GL-inet router using the provided username and password."""
+        """Log in to the router and store the session id."""
+        await self._transport.login(username, password)
 
-        # pylint: disable=too-many-arguments, too-many-positional-arguments
-        def _compute_hash(alg, salt, nonce, hash_method, username, password) -> str:
-            """Synchronous helper for CPU-bound hashing."""
-            # Step2: Generate cipher text using openssl algorithm
-            if alg == 1:  # MD5
-                cipher_password = md5_crypt.using(salt=salt).hash(password)
-            elif alg == 5:  # SHA-256
-                cipher_password = sha256_crypt.using(salt=salt, rounds=5000).hash(
-                    password
-                )
-            elif alg == 6:  # SHA-512
-                cipher_password = sha512_crypt.using(salt=salt, rounds=5000).hash(
-                    password
-                )
-            else:
-                raise ValueError("Router requested unsupported hashing algorithm for cipher password")
+    async def router_reachable(self, username: str = "root") -> bool:
+        """Return True if the router answers a login challenge."""
+        return await self._transport.router_reachable(username)
 
-            # Step3: Generate hash values for login
-            data = f"{username}:{cipher_password}:{nonce}"
-            if hash_method == "md5":  # MD5
-                return hashlib.md5(data.encode()).hexdigest()
-            if hash_method == "sha256":  # SHA-256
-                return hashlib.sha256(data.encode()).hexdigest()
-            if hash_method == "sha512":  # SHA-512
-                return hashlib.sha512(data.encode()).hexdigest()
+    # --- payload helper ------------------------------------------------------
 
-            raise ValueError("Router requested unsupported hashing algorithm for hash")
+    def _payload(self, method: str, params: list) -> dict:
+        """Build an authenticated JSON-RPC payload for the current session."""
+        return self._transport.build_sid_payload(method, params, self.sid)
 
-        try:
-            res = await self._challenge(username)
-
-            alg = res["alg"]
-            salt = res["salt"]
-            nonce = res["nonce"]
-            hash_method = res.get("hash-method", "md5")
-
-            # Run the heavy, blocking cryptography operations in a separate thread
-            hsh = await asyncio.to_thread(
-                _compute_hash, alg, salt, nonce, hash_method, username, password
-            )
-
-            # Step4: Get sid by login
-            res = await self._get_sid(username, hsh)
-            if "sid" in res:
-                self.sid = res["sid"]
-                self._logged_in = True
-
-        except exceptions.RequestException as e:
-            raise exceptions.RequestException(e)
-        except (KeyError, ValueError) as e:
-            raise KeyError("Parameter Exception:") from e
-        except AuthenticationError as e:
-            raise AuthenticationError("Authentication failed during login") from e
-        except APIClientError as e:
-            raise APIClientError(f"An unexpected error of type {type(e).__name__} has occurred during login") from e
+    # --- raw API methods (one per RPC) ---------------------------------------
 
     async def router_info(self) -> dict:
-        """Retrieves information about the router, requires authentication."""
-        response = await self._request(
-            self.gen_sid_payload("call", ["system", "get_info"], self.sid)
+        """Retrieve router information; caches the firmware version."""
+        response = await self._transport.request(
+            self._payload("call", ["system", "get_info"])
         )
-
-        # Sanity check for firmware version
         if "firmware_version" in response:
             self._firmware_version = Version.parse(response["firmware_version"])
         else:
-            # No firmware version found, error
             raise ValueError("No firmware version found in router info")
-
         return response
 
     async def router_get_status(self) -> dict[str, list[dict[str, Any]]]:
-        """Retrieves the status of the router, requires authentication."""
-        response: dict[str, list[dict[str, Any]]] = await self._request(
-            self.gen_sid_payload("call", ["system", "get_status"], self.sid)
+        """Retrieve router status, with wifi passwords redacted."""
+        response: dict[str, list[dict[str, Any]]] = await self._transport.request(
+            self._payload("call", ["system", "get_status"])
         )
-
-        # remove wifi passwords
         if "wifi" in response:
             for i, _ in enumerate(response["wifi"]):
                 response["wifi"][i]["passwd"] = None
         return response
 
     async def router_get_load(self) -> dict:
-        """Retrieves the load information of the router, requires authentication."""
-        return await self._request(
-            self.gen_sid_payload("call", ["system", "get_load"], self.sid)
+        """Retrieve router load information."""
+        return await self._transport.request(
+            self._payload("call", ["system", "get_load"])
         )
 
     async def router_mac(self) -> dict:
-        """Retrieves the MAC address of the router, requires authentication."""
-        return await self._request(
-            self.gen_sid_payload("call", ["macclone", "get_mac"], self.sid)
+        """Retrieve the router's MAC address."""
+        return await self._transport.request(
+            self._payload("call", ["macclone", "get_mac"])
         )
 
     async def router_reboot(self, delay: int = 0) -> dict:
-        """Reboots the router, requires authentication."""
-        return await self._request(
-            self.gen_sid_payload(
-                "call", ["system", "reboot", {"delay": delay}], self.sid
-            )
+        """Reboot the router."""
+        return await self._transport.request(
+            self._payload("call", ["system", "reboot", {"delay": delay}])
         )
 
     async def ping(self, address) -> bool:
-        """
-        returns the stdout of the ping command if successful or "[]" if not successful
-        """
-        result = await self._request_long_timeout(
-            self.gen_sid_payload("call", ["diag", "ping", {"addr": address}], self.sid)
+        """Ping an address from the router; True if reachable."""
+        result = await self._transport.request_long_timeout(
+            self._payload("call", ["diag", "ping", {"addr": address}])
         )
         return not result == []
 
     async def connected_to_internet(self) -> dict:
-        """Is the internet reachable
-        {"detected":2,"dns":["82.15.176.1"],"gateway":"82.15.178.1","valid":False,"netmask":"255.255.254.0","ip":"82.15.178.44"}
-        upper-level DHCP server status [0: disable; 1:enabled and have pointed the gateway to the bypass route; 2: enabled; 3：the cable is not connected]
-        """
-        return await self._request(
-            self.gen_sid_payload("call", ["edgerouter", "get_status"], self.sid)
+        """Return the upstream/edge-router connectivity status."""
+        return await self._transport.request(
+            self._payload("call", ["edgerouter", "get_status"])
         )
 
     async def list_all_clients(self) -> dict:
-        """Gets all clients connected to the router."""
-        return await self._request(
-            self.gen_sid_payload("call", ["clients", "get_list"], self.sid)
+        """Get all clients known to the router."""
+        return await self._transport.request(
+            self._payload("call", ["clients", "get_list"])
         )
 
     async def list_static_clients(self) -> dict:
-        """Gets all static clients connected to the router."""
-        return await self._request(
-            self.gen_sid_payload("call", ["lan", "get_static_bind_list"], self.sid)
+        """Get all statically-bound clients."""
+        return await self._transport.request(
+            self._payload("call", ["lan", "get_static_bind_list"])
         )
 
+    async def _wifi_config_get(self) -> dict:
+        """Retrieve the raw wifi configuration."""
+        return await self._transport.request(
+            self._payload("call", ["wifi", "get_config"])
+        )
+
+    async def _wifi_config_set(self, config: dict) -> dict:
+        """Apply a wifi configuration change."""
+        return await self._transport.request(
+            self._payload("call", ["wifi", "set_config", config])
+        )
+
+    # --- higher-level orchestration helpers ----------------------------------
+
     async def connected_clients(self) -> dict:
-        """gets all connected clients asyncronously.
-        Returns a list of dictionaries with key being the mac addr and the dictionary
-        being client data
-        """
+        """Return online clients keyed by MAC address."""
         clients = {}
         all_clients = await self.list_all_clients()
         for client in all_clients["clients"]:
@@ -253,61 +157,8 @@ class GLinet(Consumer):
                 clients[client["mac"]] = client
         return clients
 
-    async def _wifi_config_get(self) -> dict:
-        """Retrieves the WiFi configuration from the router."""
-        return await self._request(
-            self.gen_sid_payload("call", ["wifi", "get_config"], self.sid)
-        )
-
-    async def _wifi_config_set(self, config: dict) -> dict:
-        """Sets the WiFi configuration on the router."""
-        return await self._request(
-            self.gen_sid_payload("call", ["wifi", "set_config", config], self.sid)
-        )
-
     async def wifi_ifaces_get(self, redact_keys=True) -> dict[str, dict[str, Any]]:
-        """returns a dictionary of wifi interfaces.
-        If redact_keys, all key values will be set to None
-        Example output:
-        {
-            "wifi2g": {
-                "enabled": True,
-                "encryption": "sae-mixed",
-                "hidden": False,
-                "guest": False,
-                "ssid": "GL-MT6000-2G",
-                "name": "wifi2g",
-                "key": "goodlife"
-            },
-            "guest2g": {
-                "enabled": False,
-                "encryption": "psk2",
-                "hidden": False,
-                "guest": True,
-                "ssid": "GL-MT6000-2G-Guest",
-                "name": "guest2g",
-                "key": "goodlife"
-            },
-            "wifi5g": {
-                "enabled": True,
-                "encryption": "sae-mixed",
-                "hidden": False,
-                "guest": False,
-                "ssid": "GL-MT6000-5G",
-                "name": "wifi5g",
-                "key": "goodlife"
-            },
-            "guest5g": {
-                "enabled": True,
-                "encryption": "psk2",
-                "hidden": False,
-                "guest": True,
-                "ssid": "GL-MT6000-5G-Guest",
-                "name": "guest5g",
-                "key": "goodlife"
-            }
-        }
-        """
+        """Return wifi interfaces keyed by name; keys redacted unless asked."""
         wifi_config = await self._wifi_config_get()
         return {
             iface.get("name"): {
@@ -319,7 +170,7 @@ class GLinet(Consumer):
         }
 
     async def wifi_iface_set_enabled(self, iface_name: str, enabled: bool) -> dict:
-        """enable / disable wifi interface by name as found by wifi_ifaces_get()."""
+        """Enable/disable a wifi interface by name."""
         ifaces = await self.wifi_ifaces_get()
         if iface_name in ifaces:
             return await self._wifi_config_set(
@@ -327,14 +178,14 @@ class GLinet(Consumer):
             )
         raise ValueError("iface_name does not exist")
 
-    # VPN information
+    # --- VPN: WireGuard (firmware-version routing is protocol knowledge) ------
 
-    async def wireguard_client_list(self) -> list[dict[str, any]]:
-        """Gets the list of WireGuard clients."""
-        response: dict = await self._request(
-            self.gen_sid_payload("call", ["wg-client", "get_all_config_list"], self.sid)
+    async def wireguard_client_list(self) -> list[dict[str, Any]]:
+        """List configured WireGuard client peers."""
+        response: dict = await self._transport.request(
+            self._payload("call", ["wg-client", "get_all_config_list"])
         )
-        configs: list[dict[str, any]] = []
+        configs: list[dict[str, Any]] = []
         for item in response["config_list"]:
             if item["peers"] == []:
                 continue
@@ -349,127 +200,100 @@ class GLinet(Consumer):
         return configs
 
     async def wireguard_client_state(self) -> list[dict[str, Any]]:
-        """
-        Firmware 4.8 and greater returns a list of status objects
-        {"status_list": [{"rx_bytes":0,"ipv6":"","tx_bytes":0,"domain":"vpn.example.com","group_id":7707,"port":51820,"name":"TheOracle","peer_id":1341,"enabled":true,"proxy":True,"log":"","ipv4":""}]}
-        Firmware less than 4.8 returns a single status object of the most recently started client
-        {"rx_bytes":0,"ipv6":"","tx_bytes":0,"domain":"vpn.example.com","group_id":7707,"port":51820,"name":"TheOracle","peer_id":1341,"enabled":true,"proxy":True,"log":"","ipv4":""}
-        """
+        """Return WireGuard client status, normalised to a list."""
         if self._firmware_version is None:
             await self.router_info()
-
-        # If version is 4.8 or greater use vpn-client otherwise use wg-client
-        target_call = "vpn-client" if self._firmware_version >= NEW_VPN_CLIENT_VERSION else "wg-client"
-
-        response = await self._request(
-            self.gen_sid_payload("call", [target_call, "get_status"], self.sid)
+        target_call = (
+            "vpn-client"
+            if self._firmware_version >= NEW_VPN_CLIENT_VERSION
+            else "wg-client"
         )
-
+        response = await self._transport.request(
+            self._payload("call", [target_call, "get_status"])
+        )
         if self._firmware_version < NEW_VPN_CLIENT_VERSION:
-            # If the version is less than 4.8 we need to adjust the response to match the new format
-            # The old format does not return an array, but just a single object.
-            # We will wrap it in an array to match the new format.
             return [response]
-
         return response.get("status_list", [])
 
     async def wireguard_client_start(
         self, group_id: int, peer_or_tunnel_id: int
     ) -> dict:
-        """Starts a WireGuard client with the specified tunnel ID."""
+        """Start a WireGuard client."""
         return await self._wireguard_set_client_enabled(
             group_id, peer_or_tunnel_id, True
         )
 
     async def wireguard_client_stop(self, peer_or_tunnel_id: int) -> dict:
-        """Stops the WireGuard client with the specified tunnel ID."""
-        # Pass -1 for group_id and peer_id as they are not needed to stop the client
+        """Stop a WireGuard client."""
         return await self._wireguard_set_client_enabled(-1, peer_or_tunnel_id, False)
 
     async def _wireguard_set_client_enabled(
         self, group_id: int, peer_or_tunnel_id: int, enabled: bool
     ) -> dict:
-        """Sets the WireGuard client enabled state."""
+        """Enable/disable a WireGuard client, routing by firmware version."""
         if self._firmware_version is None:
             await self.router_info()
-
-        # If version is 4.8 or greater use vpn-client otherwise use wg-client
         if self._firmware_version >= NEW_VPN_CLIENT_VERSION:
             tunnel_id = peer_or_tunnel_id
-            return await self._request(
-            self.gen_sid_payload(
+            return await self._transport.request(
+                self._payload(
                     "call",
                     [
                         "vpn-client",
                         "set_tunnel",
                         {"enabled": enabled, "tunnel_id": tunnel_id},
                     ],
-                    self.sid,
                 )
             )
-
-        # Not version 4.8 or greater so use wg-client
-        # If enabled, call the start method with group_id and peer_id
         peer_id = peer_or_tunnel_id
         if enabled:
-            return await self._request(
-                    self.gen_sid_payload(
-                        "call",
-                        ["wg-client", "start", {"group_id": group_id, "peer_id": peer_id}],
-                        self.sid,
-                    )
+            return await self._transport.request(
+                self._payload(
+                    "call",
+                    ["wg-client", "start", {"group_id": group_id, "peer_id": peer_id}],
                 )
-
-        # Not enabled, call the stop method
-        return await self._request(
-                self.gen_sid_payload("call", ["wg-client", "stop"], self.sid)
             )
+        return await self._transport.request(
+            self._payload("call", ["wg-client", "stop"])
+        )
+
+    # --- VPN: Tailscale ------------------------------------------------------
 
     async def _tailscale_get_config(self) -> dict | bool:
-        """
-        {'wan_enabled': False, 'lan_ip': '192.168.0.0/24', 'enabled': False, 'lan_enabled': True}
-        {'detected': 2, 'dns': ['88.88.88.88'], 'gateway': '88.88.88.88', 'valid': False, 'netmask': '255.255.254.0', 'ip': '88.88.88.88'}
-        If tailscale is not available on the the device this will error.
-        """
+        """Return the tailscale config, or False if unavailable."""
         try:
-            result = await self._request(
-                self.gen_sid_payload("call", ["tailscale", "get_config"], self.sid)
+            result = await self._transport.request(
+                self._payload("call", ["tailscale", "get_config"])
             )
         except APIClientError:
             return False
         return result
 
     async def _tailscale_set_config(self, config_updates: dict[str, Any]) -> dict:
-        """Updates the Tailscale configuration with the provided updates."""
-        current_config: dict[str, Any] = await self._request(
-            self.gen_sid_payload("call", ["tailscale", "get_config"], self.sid)
+        """Merge updates into the tailscale config and apply them."""
+        current_config: dict[str, Any] = await self._transport.request(
+            self._payload("call", ["tailscale", "get_config"])
         )
         new_config = current_config | config_updates
-        return await self._request(
-            self.gen_sid_payload(
-                "call", ["tailscale", "set_config", new_config], self.sid
-            )
+        return await self._transport.request(
+            self._payload("call", ["tailscale", "set_config", new_config])
         )
 
     async def _tailscale_status(self) -> dict:
-        """
-        {'login_name': 'HarvsG@github', 'status': 3, 'address_v4': '100.92.1.100'}
-        {'detected': 2, 'dns': ['88.88.88.89'], 'gateway': '88.88.88.88', 'valid': False, 'netmask': '255.255.254.0', 'ip': '88.88.88.88'}
-        If disconnected or not configured, returns []
-        """
-        return await self._request(
-            self.gen_sid_payload("call", ["tailscale", "get_status"], self.sid)
+        """Return the raw tailscale status."""
+        return await self._transport.request(
+            self._payload("call", ["tailscale", "get_status"])
         )
 
     async def tailscale_connection_state(self) -> TailscaleConnection:
-        """Retrieves the Tailscale connection state."""
+        """Return the tailscale connection state."""
         state: dict = dict(await self._tailscale_status())
         if not state:
             return TailscaleConnection.DISCONNECTED
         return TailscaleConnection(state.get("status", 0))
 
     async def tailscale_configured(self) -> bool:
-        """Checks if Tailscale is configured on the router."""
+        """Return True if tailscale is configured."""
         try:
             if await self._tailscale_status() != []:
                 return True
@@ -479,8 +303,8 @@ class GLinet(Consumer):
             return False
         return True
 
-    async def tailscale_start(self, depth: int = 0) -> True:
-        """Starts Tailscale on the router. Uses recursion to handle connection attempts."""
+    async def tailscale_start(self, depth: int = 0) -> bool:
+        """Start tailscale, retrying until connected."""
         if depth > 10:
             raise ConnectionError(
                 "Tailscale attempted to connect 10 times with no success"
@@ -500,16 +324,19 @@ class GLinet(Consumer):
             status = (await self._tailscale_status())["status"]
             if status != 3:
                 raise ConnectionError(
-                    f"Did not try to start tailscale as device reported 'Connecting' and then 3 seconds later {TailscaleConnection[status].name}")
+                    "Did not try to start tailscale as device reported 'Connecting' "
+                    f"and then 3 seconds later {TailscaleConnection(status).name}"
+                )
             return True
         if status in [1, 2]:
             raise ConnectionAbortedError(
-                f"Connection not attempted as authorisation is not complete, due to {TailscaleConnection[status].name}")
-
+                "Connection not attempted as authorisation is not complete, due to "
+                f"{TailscaleConnection(status).name}"
+            )
         raise ConnectionError(f"Unknown connection status: {status}")
 
-    async def tailscale_stop(self, depth: int = 0) -> True:
-        """Stops Tailscale on the router. Uses recursion to handle disconnection attempts."""
+    async def tailscale_stop(self, depth: int = 0) -> bool:
+        """Stop tailscale, retrying until disconnected."""
         if depth > 10:
             raise ConnectionError(
                 "Tailscale attempted to disconnect 10 times with no success"
@@ -526,10 +353,7 @@ class GLinet(Consumer):
             return await self.tailscale_stop(depth)
         if status in [1, 2]:
             raise ConnectionAbortedError(
-                f"Disconnection not attempted as tailscale authorisation is not complete, due to {TailscaleConnection[status].name}. Therefore tailscale was already not connected"
+                "Disconnection not attempted as tailscale authorisation is not "
+                f"complete, due to {TailscaleConnection(status).name}. Therefore "
+                "tailscale was already not connected"
             )
-
-    @property
-    def logged_in(self) -> bool:
-        """Returns whether the client is logged in."""
-        return self._logged_in

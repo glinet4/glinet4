@@ -6,16 +6,12 @@ readme = "README.md"
 license = "GPL-3.0-or-later"
 requires-python = ">=3.11"
 authors = [{ name = "HarvsG", email = "doctor@codingdoctor.co.uk" }]
-# Runtime dependencies. Note: pydantic, aiohttp and requests are imported at
-# module load (error_handling/glinet) but Poetry only declared them in the dev
-# group, leaving the published package reliant on the consumer's environment.
-# They are declared here so the built package actually imports on its own.
+# Runtime dependencies.
 dependencies = [
     "uplink>=0.10.0",
     "libpass>=1.8.0",
     "semver>=3.0.0",
     "aiohttp>=3.8.4",
-    "requests>=2.27.1",
     "pydantic>=2.0",
 ]
 
