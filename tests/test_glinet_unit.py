@@ -160,3 +160,8 @@ async def test_tailscale_stop_disables_when_connected(glinet):
         [],  # recursion: now empty -> True
     ]
     assert await glinet.tailscale_stop() is True
+
+
+async def test_tailscale_stop_already_disconnected_status_zero_returns_true(glinet):
+    glinet._transport.request.return_value = {"status": 0}
+    assert await glinet.tailscale_stop() is True

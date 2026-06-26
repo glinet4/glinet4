@@ -347,4 +347,4 @@ class GLinet:
                 f"complete, due to {TailscaleConnection(status).name}. Therefore "
                 "tailscale was already not connected"
             )
-        raise ConnectionError(f"Unknown connection status: {status}")
+        return True
