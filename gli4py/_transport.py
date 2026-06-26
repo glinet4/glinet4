@@ -86,9 +86,7 @@ class GLinetTransport(Consumer):
 
     async def _get_sid(self, username: str, hsh: str) -> dict:
         """Exchange the computed hash for a session id."""
-        login_data = self.build_no_auth_payload(
-            "login", {"username": username, "hash": hsh}
-        )
+        login_data = self.build_no_auth_payload("login", {"username": username, "hash": hsh})
         return await self.request(login_data)
 
     async def router_reachable(self, username: str = "root") -> bool:
@@ -116,13 +114,9 @@ class GLinetTransport(Consumer):
             if alg == 1:  # MD5
                 cipher_password = md5_crypt.using(salt=salt).hash(password)
             elif alg == 5:  # SHA-256
-                cipher_password = sha256_crypt.using(salt=salt, rounds=5000).hash(
-                    password
-                )
+                cipher_password = sha256_crypt.using(salt=salt, rounds=5000).hash(password)
             elif alg == 6:  # SHA-512
-                cipher_password = sha512_crypt.using(salt=salt, rounds=5000).hash(
-                    password
-                )
+                cipher_password = sha512_crypt.using(salt=salt, rounds=5000).hash(password)
             else:
                 raise ValueError(
                     "Router requested unsupported hashing algorithm for cipher password"
@@ -135,9 +129,7 @@ class GLinetTransport(Consumer):
                 return hashlib.sha256(data.encode()).hexdigest()
             if hash_method == "sha512":
                 return hashlib.sha512(data.encode()).hexdigest()
-            raise ValueError(
-                "Router requested unsupported hashing algorithm for hash"
-            )
+            raise ValueError("Router requested unsupported hashing algorithm for hash")
 
         try:
             res = await self._challenge(username)

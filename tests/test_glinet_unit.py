@@ -84,9 +84,7 @@ async def test_wifi_ifaces_get_exposes_keys_when_not_redacted(glinet):
 
 async def test_wireguard_client_state_new_firmware_returns_status_list(glinet):
     glinet._firmware_version = Version(4, 8, 0)
-    glinet._transport.request.return_value = {
-        "status_list": [{"name": "A", "enabled": True}]
-    }
+    glinet._transport.request.return_value = {"status_list": [{"name": "A", "enabled": True}]}
     assert await glinet.wireguard_client_state() == [{"name": "A", "enabled": True}]
 
 
@@ -103,9 +101,7 @@ async def test_wireguard_client_list_flattens_peers_and_skips_empty(glinet):
             {"group_name": "G2", "group_id": 2, "peers": [{"name": "P", "peer_id": 9}]},
         ]
     }
-    assert await glinet.wireguard_client_list() == [
-        {"name": "G2/P", "group_id": 2, "peer_id": 9}
-    ]
+    assert await glinet.wireguard_client_list() == [{"name": "G2/P", "group_id": 2, "peer_id": 9}]
 
 
 async def test_tailscale_connection_state_disconnected_on_empty(glinet):
@@ -125,10 +121,10 @@ async def test_tailscale_start_already_connected(glinet):
 
 async def test_tailscale_start_enables_when_empty_then_connects(glinet):
     glinet._transport.request.side_effect = [
-        [],                      # _tailscale_status: not configured/disabled
+        [],  # _tailscale_status: not configured/disabled
         {"wan_enabled": False},  # _tailscale_set_config -> get_config
-        {"ok": True},            # _tailscale_set_config -> set_config
-        {"status": 3},           # recursion: now connected
+        {"ok": True},  # _tailscale_set_config -> set_config
+        {"status": 3},  # recursion: now connected
     ]
     assert await glinet.tailscale_start() is True
 
@@ -158,9 +154,9 @@ async def test_tailscale_stop_when_already_empty_returns_true(glinet):
 
 async def test_tailscale_stop_disables_when_connected(glinet):
     glinet._transport.request.side_effect = [
-        {"status": 3},           # _tailscale_status: connected
-        {"wan_enabled": True},   # _tailscale_set_config -> get_config
-        {"ok": True},            # _tailscale_set_config -> set_config
-        [],                      # recursion: now empty -> True
+        {"status": 3},  # _tailscale_status: connected
+        {"wan_enabled": True},  # _tailscale_set_config -> get_config
+        {"ok": True},  # _tailscale_set_config -> set_config
+        [],  # recursion: now empty -> True
     ]
     assert await glinet.tailscale_stop() is True

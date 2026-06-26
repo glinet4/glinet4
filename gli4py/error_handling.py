@@ -22,6 +22,7 @@ class AuthenticationError(NonZeroResponse):
 class TokenError(AuthenticationError):
     """Should be raised when the token is invalid or expired"""
 
+
 async def raise_for_status(response: ClientResponse) -> dict:
     """Checks whether or not the response was successful."""
 
@@ -31,7 +32,9 @@ async def raise_for_status(response: ClientResponse) -> dict:
         res = await response.json(content_type=None)
     except Exception as exc:
         text = await response.text()
-        raise UnsuccessfulRequest(f"Request failed or returned invalid JSON (Status {response.status}): {text}") from exc
+        raise UnsuccessfulRequest(
+            f"Request failed or returned invalid JSON (Status {response.status}): {text}"
+        ) from exc
 
     # 2. Process the GL-iNet logic
     if 200 <= response.status < 300:
@@ -48,9 +51,13 @@ async def raise_for_status(response: ClientResponse) -> dict:
         if code == -1:
             raise TokenError(f"Request returned error code -1 ({res['error']['message']})")
         if code == -32000:
-            raise AuthenticationError(f"Request returned error code -32000 ({res['error']['message']})")
+            raise AuthenticationError(
+                f"Request returned error code -32000 ({res['error']['message']})"
+            )
         if code < 0:
-            raise NonZeroResponse(f"Request returned error code {code} with message: {res['error']['message']}")
+            raise NonZeroResponse(
+                f"Request returned error code {code} with message: {res['error']['message']}"
+            )
 
         return res
 

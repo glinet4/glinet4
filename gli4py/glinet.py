@@ -72,9 +72,7 @@ class GLinet:
 
     async def router_info(self) -> dict:
         """Retrieve router information; caches the firmware version."""
-        response = await self._transport.request(
-            self._payload("call", ["system", "get_info"])
-        )
+        response = await self._transport.request(self._payload("call", ["system", "get_info"]))
         if "firmware_version" in response:
             self._firmware_version = Version.parse(response["firmware_version"])
         else:
@@ -93,15 +91,11 @@ class GLinet:
 
     async def router_get_load(self) -> dict:
         """Retrieve router load information."""
-        return await self._transport.request(
-            self._payload("call", ["system", "get_load"])
-        )
+        return await self._transport.request(self._payload("call", ["system", "get_load"]))
 
     async def router_mac(self) -> dict:
         """Retrieve the router's MAC address."""
-        return await self._transport.request(
-            self._payload("call", ["macclone", "get_mac"])
-        )
+        return await self._transport.request(self._payload("call", ["macclone", "get_mac"]))
 
     async def router_reboot(self, delay: int = 0) -> dict:
         """Reboot the router."""
@@ -118,33 +112,23 @@ class GLinet:
 
     async def connected_to_internet(self) -> dict:
         """Return the upstream/edge-router connectivity status."""
-        return await self._transport.request(
-            self._payload("call", ["edgerouter", "get_status"])
-        )
+        return await self._transport.request(self._payload("call", ["edgerouter", "get_status"]))
 
     async def list_all_clients(self) -> dict:
         """Get all clients known to the router."""
-        return await self._transport.request(
-            self._payload("call", ["clients", "get_list"])
-        )
+        return await self._transport.request(self._payload("call", ["clients", "get_list"]))
 
     async def list_static_clients(self) -> dict:
         """Get all statically-bound clients."""
-        return await self._transport.request(
-            self._payload("call", ["lan", "get_static_bind_list"])
-        )
+        return await self._transport.request(self._payload("call", ["lan", "get_static_bind_list"]))
 
     async def _wifi_config_get(self) -> dict:
         """Retrieve the raw wifi configuration."""
-        return await self._transport.request(
-            self._payload("call", ["wifi", "get_config"])
-        )
+        return await self._transport.request(self._payload("call", ["wifi", "get_config"]))
 
     async def _wifi_config_set(self, config: dict) -> dict:
         """Apply a wifi configuration change."""
-        return await self._transport.request(
-            self._payload("call", ["wifi", "set_config", config])
-        )
+        return await self._transport.request(self._payload("call", ["wifi", "set_config", config]))
 
     # --- higher-level orchestration helpers ----------------------------------
 
@@ -173,9 +157,7 @@ class GLinet:
         """Enable/disable a wifi interface by name."""
         ifaces = await self.wifi_ifaces_get()
         if iface_name in ifaces:
-            return await self._wifi_config_set(
-                {"enabled": enabled, "iface_name": iface_name}
-            )
+            return await self._wifi_config_set({"enabled": enabled, "iface_name": iface_name})
         raise ValueError("iface_name does not exist")
 
     # --- VPN: WireGuard (firmware-version routing is protocol knowledge) ------
@@ -192,7 +174,7 @@ class GLinet:
             for peer in item["peers"]:
                 configs.append(
                     {
-                        "name": f'{item["group_name"]}/{peer["name"]}',
+                        "name": f"{item['group_name']}/{peer['name']}",
                         "group_id": item["group_id"],
                         "peer_id": peer["peer_id"],
                     }
@@ -204,24 +186,16 @@ class GLinet:
         if self._firmware_version is None:
             await self.router_info()
         target_call = (
-            "vpn-client"
-            if self._firmware_version >= NEW_VPN_CLIENT_VERSION
-            else "wg-client"
+            "vpn-client" if self._firmware_version >= NEW_VPN_CLIENT_VERSION else "wg-client"
         )
-        response = await self._transport.request(
-            self._payload("call", [target_call, "get_status"])
-        )
+        response = await self._transport.request(self._payload("call", [target_call, "get_status"]))
         if self._firmware_version < NEW_VPN_CLIENT_VERSION:
             return [response]
         return response.get("status_list", [])
 
-    async def wireguard_client_start(
-        self, group_id: int, peer_or_tunnel_id: int
-    ) -> dict:
+    async def wireguard_client_start(self, group_id: int, peer_or_tunnel_id: int) -> dict:
         """Start a WireGuard client."""
-        return await self._wireguard_set_client_enabled(
-            group_id, peer_or_tunnel_id, True
-        )
+        return await self._wireguard_set_client_enabled(group_id, peer_or_tunnel_id, True)
 
     async def wireguard_client_stop(self, peer_or_tunnel_id: int) -> dict:
         """Stop a WireGuard client."""
@@ -253,9 +227,7 @@ class GLinet:
                     ["wg-client", "start", {"group_id": group_id, "peer_id": peer_id}],
                 )
             )
-        return await self._transport.request(
-            self._payload("call", ["wg-client", "stop"])
-        )
+        return await self._transport.request(self._payload("call", ["wg-client", "stop"]))
 
     # --- VPN: Tailscale ------------------------------------------------------
 
@@ -281,9 +253,7 @@ class GLinet:
 
     async def _tailscale_status(self) -> dict:
         """Return the raw tailscale status."""
-        return await self._transport.request(
-            self._payload("call", ["tailscale", "get_status"])
-        )
+        return await self._transport.request(self._payload("call", ["tailscale", "get_status"]))
 
     async def tailscale_connection_state(self) -> TailscaleConnection:
         """Return the tailscale connection state."""
@@ -306,9 +276,7 @@ class GLinet:
     async def tailscale_start(self, depth: int = 0) -> bool:
         """Start tailscale, retrying until connected."""
         if depth > 10:
-            raise ConnectionError(
-                "Tailscale attempted to connect 10 times with no success"
-            )
+            raise ConnectionError("Tailscale attempted to connect 10 times with no success")
         response: dict | list = await self._tailscale_status()
         if isinstance(response, list) and response == []:
             await self._tailscale_set_config({"enabled": True})
@@ -338,9 +306,7 @@ class GLinet:
     async def tailscale_stop(self, depth: int = 0) -> bool:
         """Stop tailscale, retrying until disconnected."""
         if depth > 10:
-            raise ConnectionError(
-                "Tailscale attempted to disconnect 10 times with no success"
-            )
+            raise ConnectionError("Tailscale attempted to disconnect 10 times with no success")
         response: dict | list = await self._tailscale_status()
         if isinstance(response, list) and response == []:
             return True

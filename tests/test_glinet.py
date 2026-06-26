@@ -10,13 +10,13 @@ Without ``GLINET_PASSWORD`` the whole live suite is skipped.
 import asyncio
 import os
 
-from dotenv import load_dotenv
 import pytest
+from dotenv import load_dotenv
 from semver import Version
 
 from gli4py.enums import TailscaleConnection
 from gli4py.error_handling import NonZeroResponse
-from gli4py.glinet import GLinet, NEW_VPN_CLIENT_VERSION
+from gli4py.glinet import NEW_VPN_CLIENT_VERSION, GLinet
 
 load_dotenv()
 
