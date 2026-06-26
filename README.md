@@ -8,19 +8,16 @@ As part of their modiification of the UI they used to provide a [documented loca
 I thought it would be handy to develop a python 3 wrapper for the API for easy intergation into other services such as [HomeAssistant](https://www.home-assistant.io/)
 
 ## Installation
-`pip3 install gli-py`
+`pip install gli4py`
 
 ## Dev setup
 1. Clone the repo
-2. Ensure you have python 3.11 or greater installed `python3 -V` or `python -V`
-3. Uses poetry for venv control `pip3 install poetry`
-4. `poetry config virtualenvs.in-project true` create the venvs in the project folder
-5. `poetry install`
-6. `poetry env activate`
-7. To run tests, ensure there is a file called `router_pwd` in the root directory with the router password in.
-8. Then run `pytest -s` to see responses, assumes the router is at `192.168.0.1`
-9. Set token with `poetry config pypi-token.pypi TOKEN`
-10. publish with `poetry publish --build`
+2. Ensure you have Python 3.11 or greater (`python3 -V`) and install [uv](https://docs.astral.sh/uv/).
+3. `uv sync` — creates the in-project `.venv` and installs the runtime + dev dependencies.
+4. To run tests, create a file called `router_pwd` in the repo root containing the router password.
+   The tests run against a **live router** (default `192.168.8.1`), so a reachable GL.iNet device is required.
+5. `uv run pytest -s` to see responses.
+6. Build with `uv build`. Releases publish to PyPI automatically on a GitHub Release (trusted publishing).
 
 ## Dev setup alongside HA & the Custom component
 1. Clone the repo into the vscode `/workspaces/` dir

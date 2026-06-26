@@ -1,29 +1,39 @@
-[tool.poetry]
+[project]
 name = "gli4py"
-version = "0.0.17-beta.3"
-description = "A python 3 API wrapper for GL-inet routers for consumption by Home Assistant"
-authors = ["HarvsG <doctor@codingdoctor.co.uk>"]
-license = "GNU GENERAL PUBLIC LICENSE"
+version = "0.0.17b3"
+description = "A Python 3 async API wrapper for GL.iNet routers (used by the Home Assistant integration)"
 readme = "README.md"
-packages = [{include = "gli4py"}]
+license = "GPL-3.0-or-later"
+requires-python = ">=3.11"
+authors = [{ name = "HarvsG", email = "doctor@codingdoctor.co.uk" }]
+# Runtime dependencies. Note: pydantic, aiohttp and requests are imported at
+# module load (error_handling/glinet) but Poetry only declared them in the dev
+# group, leaving the published package reliant on the consumer's environment.
+# They are declared here so the built package actually imports on its own.
+dependencies = [
+    "uplink>=0.10.0",
+    "libpass>=1.8.0",
+    "semver>=3.0.0",
+    "aiohttp>=3.8.4",
+    "requests>=2.27.1",
+    "pydantic>=2.0",
+]
 
-[tool.poetry.dependencies]
-python = "^3.11"
-uplink = "0.10.0"
-libpass = "^1.8.0"
-semver = "^3.0.0"
+[project.urls]
+Homepage = "https://github.com/HarvsG/gli4py"
 
-[tool.poetry.group.dev.dependencies]
-uplink = "^0.10.0"
-requests = "^2.27.1"
-aiohttp = "^3.8.4"
-asyncio = "^3.4.3"
-json2json = "^0.1.0"
-pytest = "^7.2.2"
-pytest-asyncio = "^0.21.0"
+[dependency-groups]
+dev = [
+    "pytest>=7.2",
+    "pytest-asyncio>=0.21",
+]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
+[tool.hatch.build.targets.wheel]
+packages = ["gli4py"]
 
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
