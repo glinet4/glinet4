@@ -1,4 +1,5 @@
 """Unit tests for the GLinet transport/auth layer (no hardware)."""
+# pylint: disable=missing-function-docstring,redefined-outer-name
 
 from unittest.mock import AsyncMock
 

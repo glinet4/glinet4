@@ -1,4 +1,5 @@
 """Unit tests for gli4py enums."""
+# pylint: disable=missing-function-docstring
 
 from gli4py.enums import TailscaleConnection
 

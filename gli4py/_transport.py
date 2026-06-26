@@ -102,7 +102,7 @@ class GLinetTransport(Consumer):  # type: ignore[misc]
     async def login(self, username: str, password: str) -> None:
         """Log in via challenge-response and store the session id."""
 
-        def _compute_hash(
+        def _compute_hash(  # pylint: disable=too-many-arguments,too-many-positional-arguments
             alg: int,
             salt: str,
             nonce: str,

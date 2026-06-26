@@ -1,10 +1,12 @@
 """Unit tests for GLinet's API/orchestration layer against a mocked transport."""
+# pylint: disable=missing-function-docstring,protected-access,redefined-outer-name
 
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from semver import Version
 
+from gli4py._transport import GLinetTransport
 from gli4py.enums import TailscaleConnection
 from gli4py.glinet import GLinet
 
@@ -23,6 +25,22 @@ def test_construction_preserves_public_surface():
     g = GLinet(base_url="http://192.168.8.1/rpc")
     assert g.logged_in is False
     assert g.sid is None
+
+
+def test_gen_sid_payload_shim_forwards_non_mutating():
+    # The shim must forward to the transport builder and not mutate the caller's list.
+    params = ["system", "get_info"]
+    assert GLinet.gen_sid_payload("call", params, "SID") == GLinetTransport.build_sid_payload(
+        "call", ["system", "get_info"], "SID"
+    )
+    assert params == ["system", "get_info"]
+
+
+def test_gen_no_auth_payload_shim_forwards():
+    # The shim must forward to the transport builder.
+    assert GLinet.gen_no_auth_payload(
+        "challenge", {"username": "root"}
+    ) == GLinetTransport.build_no_auth_payload("challenge", {"username": "root"})
 
 
 async def test_router_info_delegates_and_caches_firmware(glinet):

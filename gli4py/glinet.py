@@ -78,6 +78,25 @@ class GLinet:
         """Build an authenticated JSON-RPC payload for the current session."""
         return self._transport.build_sid_payload(method, params, self.sid)
 
+    @staticmethod
+    def gen_sid_payload(method: str, params: list[Any], sid: str | None = None) -> dict[str, Any]:
+        """Deprecated compatibility shim for the authenticated payload builder.
+
+        Retained so callers that built payloads via ``GLinet.gen_sid_payload``
+        keep working. New code should use the transport's ``build_sid_payload``.
+        Like that builder, this does not mutate ``params``.
+        """
+        return GLinetTransport.build_sid_payload(method, params, sid)
+
+    @staticmethod
+    def gen_no_auth_payload(method: str, params: dict[str, Any]) -> dict[str, Any]:
+        """Deprecated compatibility shim for the unauthenticated payload builder.
+
+        Retained for backward compatibility; new code should use the
+        transport's ``build_no_auth_payload``.
+        """
+        return GLinetTransport.build_no_auth_payload(method, params)
+
     # --- raw API methods (one per RPC) ---------------------------------------
 
     async def router_info(self) -> RouterInfo:
