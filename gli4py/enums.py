@@ -1,9 +1,9 @@
 """This module defines enums for various states and types used in the GL-inet API client."""
 
-from enum import Enum
+from enum import IntEnum
 
 
-class TailscaleConnection(Enum):
+class TailscaleConnection(IntEnum):
     """Enum representing the connection states of Tailscale."""
 
     DISCONNECTED = 0
