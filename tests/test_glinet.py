@@ -203,6 +203,25 @@ async def test_wifi_mlo_config() -> None:
     assert isinstance(config, dict)
 
 
+async def test_led_config() -> None:
+    """Test retrieving the LED configuration."""
+    config = await router.led_config()
+    print(config)
+    assert config["led_enable"] in [True, False]
+
+
+async def test_led_set_enabled() -> None:
+    """Test toggling the LEDs and restoring the original state."""
+    assert PERFORM_DISTRUPTIVE_TESTS, (
+        "Disruptive tests are disabled, set PERFORM_DISTRUPTIVE_TESTS to True to run this test."
+    )
+    original = (await router.led_config())["led_enable"]
+    await router.led_set_enabled(not original)
+    assert (await router.led_config())["led_enable"] != original
+    await router.led_set_enabled(original)
+    assert (await router.led_config())["led_enable"] == original
+
+
 async def test_firewall_port_forward_list() -> None:
     """Test retrieving port-forward rules."""
     rules = await router.firewall_port_forward_list()

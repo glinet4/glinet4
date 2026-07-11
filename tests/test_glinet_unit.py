@@ -215,6 +215,25 @@ async def test_wifi_mlo_config_extracts_res(glinet):
     )
 
 
+async def test_led_config_returns_state(glinet):
+    glinet._transport.request.return_value = {"led_enable": False}
+    config = await glinet.led_config()
+    assert config["led_enable"] is False
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call", ["led", "get_config", {}], "SID"
+    )
+
+
+async def test_led_set_enabled_merges_current_config(glinet):
+    glinet._transport.request.side_effect = [
+        {"led_enable": False},
+        {},
+    ]
+    await glinet.led_set_enabled(True)
+    last_call = glinet._transport.build_sid_payload.call_args_list[-1]
+    assert last_call.args == ("call", ["led", "set_config", {"led_enable": True}], "SID")
+
+
 async def test_firewall_port_forward_list_extracts_rules(glinet):
     glinet._transport.request.return_value = {
         "res": [

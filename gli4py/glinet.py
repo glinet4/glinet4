@@ -24,6 +24,7 @@ from ._types import (
     DmzConfig,
     EthernetPortStatus,
     FirmwareCheck,
+    LedConfig,
     MloConfig,
     NetworkInterfaceStatus,
     PortForwardRule,
@@ -178,6 +179,21 @@ class GLinet:
         """Reboot the router."""
         return await self._transport.request(
             self._payload("call", ["system", "reboot", {"delay": delay}])
+        )
+
+    async def led_config(self) -> LedConfig:
+        """Return the LED configuration."""
+        result: LedConfig = await self._transport.request(
+            self._payload("call", ["led", "get_config", {}])
+        )
+        return result
+
+    async def led_set_enabled(self, enabled: bool) -> Any:
+        """Enable or disable the router LEDs, preserving other LED settings."""
+        current: dict[str, Any] = dict(await self.led_config())
+        new_config = current | {"led_enable": enabled}
+        return await self._transport.request(
+            self._payload("call", ["led", "set_config", new_config])
         )
 
     async def firewall_port_forward_list(self) -> list[PortForwardRule]:

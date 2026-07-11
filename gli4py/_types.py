@@ -138,6 +138,12 @@ class ClientsStatus(TypedDict, total=False):
     wireless_total: int
 
 
+class LedConfig(TypedDict, total=False):
+    """``led get_config``."""
+
+    led_enable: bool
+
+
 class PortForwardRule(TypedDict, total=False):
     """A rule from ``firewall get_port_forward_list``."""
 
