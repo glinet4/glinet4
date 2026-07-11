@@ -30,10 +30,15 @@ PERFORM_DISTRUPTIVE_TESTS = os.environ.get("GLINET_RUN_DISRUPTIVE", "").lower() 
 )
 
 # Every test below talks to a real router; skip the module without credentials.
-pytestmark = pytest.mark.skipif(
-    not GLINET_PASSWORD,
-    reason="set GLINET_PASSWORD (e.g. in a .env file) to run the live router tests",
-)
+# The module shares one GLinet (and one aiohttp session), so all tests must run
+# on one event loop.
+pytestmark = [
+    pytest.mark.skipif(
+        not GLINET_PASSWORD,
+        reason="set GLINET_PASSWORD (e.g. in a .env file) to run the live router tests",
+    ),
+    pytest.mark.asyncio(loop_scope="module"),
+]
 
 router = GLinet(base_url=f"{GLINET_HOST}/rpc")
 
@@ -68,16 +73,6 @@ models = [
 ]
 
 
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create a new event loop for each test session."""
-    policy = asyncio.get_event_loop_policy()
-    loop = policy.new_event_loop()
-    yield loop
-    loop.close()
-
-
-@pytest.mark.asyncio
 async def test_router_reachable() -> None:
     """Test if the router is reachable."""
     response = await router.router_reachable()
@@ -85,7 +80,6 @@ async def test_router_reachable() -> None:
     print(response)
 
 
-@pytest.mark.asyncio
 async def test_login() -> None:
     """Test logging into the router."""
     assert not router.logged_in
@@ -94,7 +88,6 @@ async def test_login() -> None:
     print(router.sid)
 
 
-@pytest.mark.asyncio
 async def test_router_info() -> None:
     """Test retrieving router information."""
     response = await router.router_info()
@@ -104,7 +97,6 @@ async def test_router_info() -> None:
     print(response)
 
 
-@pytest.mark.asyncio
 async def test_router_get_status() -> None:
     """Test retrieving router status."""
     response = await router.router_get_status()
@@ -118,7 +110,6 @@ async def test_router_get_status() -> None:
     print(response)
 
 
-@pytest.mark.asyncio
 async def test_router_get_load() -> None:
     """Test retrieving router load information."""
     response = await router.router_get_load()
@@ -128,7 +119,6 @@ async def test_router_get_load() -> None:
     print(response)
 
 
-@pytest.mark.asyncio
 async def test_router_mac() -> None:
     """Test retrieving the router's MAC address."""
     response = await router.router_mac()
@@ -136,7 +126,6 @@ async def test_router_mac() -> None:
     print(response)
 
 
-@pytest.mark.asyncio
 async def test_connected_clients() -> None:
     """Test retrieving connected clients."""
     clients = await router.connected_clients()
@@ -144,7 +133,6 @@ async def test_connected_clients() -> None:
     assert len(clients) > 0
 
 
-@pytest.mark.asyncio
 async def test_wifi_ifaces_get() -> None:
     """Test retrieving WiFi interfaces."""
     wifi_ifaces = await router.wifi_ifaces_get()
@@ -156,7 +144,6 @@ async def test_wifi_ifaces_get() -> None:
         assert "key" in iface
 
 
-@pytest.mark.asyncio
 async def test_wifi_ifaces_set_enabled() -> None:
     """Test enabling/disabling a WiFi interface."""
 
@@ -176,7 +163,6 @@ async def test_wifi_ifaces_set_enabled() -> None:
     assert iface_enabled_after != iface_enabled
 
 
-@pytest.mark.asyncio
 async def test_connected_to_internet() -> None:
     """Test checking if the router is connected to the internet."""
     response = await router.connected_to_internet()
@@ -185,7 +171,6 @@ async def test_connected_to_internet() -> None:
     assert "ip" in response
 
 
-@pytest.mark.asyncio
 async def test_ping() -> None:
     """Test pinging a host."""
     response = await router.ping("google.com")
@@ -197,7 +182,6 @@ async def test_ping() -> None:
     assert not response
 
 
-@pytest.mark.asyncio
 async def test_wireguard_client_list() -> None:
     """Test retrieving the list of WireGuard clients."""
     response = await router.wireguard_client_list()
@@ -205,7 +189,6 @@ async def test_wireguard_client_list() -> None:
     # assert(response['enable'] in [True,False])
 
 
-@pytest.mark.asyncio
 async def test_wireguard_client_state() -> None:
     """Test retrieving the state of the WireGuard client."""
     # We need to get the proper firmware version for this
@@ -223,7 +206,6 @@ async def test_wireguard_client_state() -> None:
         assert first_status["status"] in [0, 1, 2]
 
 
-@pytest.mark.asyncio
 async def test_wireguard_start() -> None:
     """Test starting the WireGuard client."""
     assert PERFORM_DISTRUPTIVE_TESTS, (
@@ -261,7 +243,6 @@ async def test_wireguard_start() -> None:
             pytest.fail("WireGuard client took too long to connect.")
 
 
-@pytest.mark.asyncio
 async def test_wireguard_stop() -> None:
     """Test stopping the WireGuard client."""
     assert PERFORM_DISTRUPTIVE_TESTS, (
@@ -303,7 +284,6 @@ async def test_wireguard_stop() -> None:
             pytest.fail("WireGuard client took too long to disconnect.")
 
 
-@pytest.mark.asyncio
 async def test_tailscale_status() -> None:
     """Test retrieving the Tailscale status."""
     response = await router._tailscale_status()  # pylint: disable=protected-access
@@ -311,7 +291,6 @@ async def test_tailscale_status() -> None:
     assert dict(response).get("status", 0) in [1, 2, 3, 4] or response == []
 
 
-@pytest.mark.asyncio
 async def test_tailscale_connection() -> None:
     """Test retrieving the Tailscale connection state."""
     response = await router.tailscale_connection_state()
@@ -319,7 +298,6 @@ async def test_tailscale_connection() -> None:
     assert response in [TailscaleConnection.DISCONNECTED, TailscaleConnection.CONNECTED]
 
 
-@pytest.mark.asyncio
 async def test_tailscale_configured() -> None:
     """Test checking if Tailscale is configured."""
     response = await router.tailscale_configured()
@@ -327,7 +305,6 @@ async def test_tailscale_configured() -> None:
     assert response in [True, False]
 
 
-@pytest.mark.asyncio
 async def test_tailscale_get_config() -> None:
     """Test retrieving the Tailscale configuration."""
     response = await router._tailscale_get_config()  # pylint: disable=protected-access
@@ -335,7 +312,6 @@ async def test_tailscale_get_config() -> None:
     assert response["enabled"] in [True, False]
 
 
-@pytest.mark.asyncio
 async def test_tailscale_start() -> None:
     """Test starting Tailscale."""
     assert PERFORM_DISTRUPTIVE_TESTS, (
@@ -346,7 +322,6 @@ async def test_tailscale_start() -> None:
     assert result in [True, False]
 
 
-@pytest.mark.asyncio
 async def test_tailscale_stop() -> None:
     """Test stopping Tailscale."""
     assert PERFORM_DISTRUPTIVE_TESTS, (
@@ -357,7 +332,6 @@ async def test_tailscale_stop() -> None:
     assert result in [True, False]
 
 
-@pytest.mark.asyncio
 async def test_router_reboot() -> None:
     """Test rebooting the router."""
     assert PERFORM_DISTRUPTIVE_TESTS, (
