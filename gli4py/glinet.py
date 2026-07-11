@@ -25,8 +25,11 @@ from ._types import (
     DmzConfig,
     EthernetPortStatus,
     FirmwareCheck,
+    FlowStatsApp,
+    FlowStatsRule,
     LedConfig,
     MloConfig,
+    NetworkAcceleration,
     NetworkInterfaceStatus,
     PortForwardRule,
     RouterInfo,
@@ -183,6 +186,84 @@ class GLinet:
         """Reboot the router."""
         return await self._transport.request(
             self._payload("call", ["system", "reboot", {"delay": delay}])
+        )
+
+    async def flow_stats_rule(self) -> FlowStatsRule:
+        """Return the flow-statistics collection rule (enable/type/period)."""
+        result: FlowStatsRule = await self._transport.request(
+            self._payload("call", ["flow_statistics", "get_statistics_rule", {}])
+        )
+        return result
+
+    async def flow_stats_set_enabled(
+        self, enabled: bool, stat_type: str = "app", period: str = "day"
+    ) -> Any:
+        """Enable or disable flow-statistics collection.
+
+        Note: on this hardware the DPI accounting that fills per-app statistics
+        rides on NAT acceleration, which conflicts with QoS/SQM. Enabling the
+        rule starts the collector, but populated app data also requires
+        :meth:`network_acceleration` to be on (see ``network_acceleration_set``).
+        """
+        return await self._transport.request(
+            self._payload(
+                "call",
+                [
+                    "flow_statistics",
+                    "set_statistics_rule",
+                    {"enable": enabled, "type": stat_type, "time": period},
+                ],
+            )
+        )
+
+    async def flow_stats_top_apps(self) -> list[FlowStatsApp]:
+        """Return the top applications by traffic.
+
+        Disabled, the firmware answers a bare list; enabled, it wraps the list
+        as ``{"top_apps": [...]}``.
+        """
+        response = await self._transport.request(
+            self._payload("call", ["flow_statistics", "get_top_app_flow_statistics", {}])
+        )
+        if isinstance(response, dict):
+            wrapped: list[FlowStatsApp] = response.get("top_apps", [])
+            return wrapped
+        return response if isinstance(response, list) else []
+
+    async def flow_stats_clear(self) -> Any:
+        """Clear all collected flow statistics."""
+        return await self._transport.request(
+            self._payload("call", ["flow_statistics", "clear_statistics", {}])
+        )
+
+    async def network_acceleration(self) -> NetworkAcceleration:
+        """Return the NAT/DPI acceleration state."""
+        result: NetworkAcceleration = await self._transport.request(
+            self._payload("call", ["network", "get_netnat_config", {}])
+        )
+        return result
+
+    async def network_acceleration_set(self, enabled: bool) -> Any:
+        """Enable or disable NAT acceleration.
+
+        The router rejects the change with ``err_code`` -1 and a message when a
+        conflicting feature (Parental Control / QoS / SQM / DPI) is active, so
+        callers should surface that message rather than assume success.
+        """
+        current = await self.network_acceleration()
+        return await self._transport.request(
+            self._payload(
+                "call",
+                [
+                    "network",
+                    "set_netnat_config",
+                    {
+                        "enable": enabled,
+                        "actype": current.get("actype", 1),
+                        "wifi_reload": False,
+                    },
+                ],
+            )
         )
 
     async def adguard_config(self) -> AdguardConfig:

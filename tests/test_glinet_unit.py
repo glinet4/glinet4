@@ -337,6 +337,84 @@ async def test_blocked_client_macs_filters_blocked(glinet):
     assert await glinet.blocked_client_macs() == {"AA", "CC"}
 
 
+async def test_flow_stats_rule_returns_state(glinet):
+    glinet._transport.request.return_value = {"enable": False, "type": "app", "time": "day"}
+    rule = await glinet.flow_stats_rule()
+    assert rule["enable"] is False
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call", ["flow_statistics", "get_statistics_rule", {}], "SID"
+    )
+
+
+async def test_flow_stats_set_enabled_sends_full_rule(glinet):
+    glinet._transport.request.return_value = []
+    await glinet.flow_stats_set_enabled(True)
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call",
+        [
+            "flow_statistics",
+            "set_statistics_rule",
+            {"enable": True, "type": "app", "time": "day"},
+        ],
+        "SID",
+    )
+
+
+async def test_flow_stats_set_enabled_passes_type_and_time(glinet):
+    glinet._transport.request.return_value = []
+    await glinet.flow_stats_set_enabled(False, stat_type="client", period="month")
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call",
+        [
+            "flow_statistics",
+            "set_statistics_rule",
+            {"enable": False, "type": "client", "time": "month"},
+        ],
+        "SID",
+    )
+
+
+async def test_flow_stats_top_apps_unwraps_enabled_dict(glinet):
+    glinet._transport.request.return_value = {
+        "max_bytes": "0",
+        "period_seconds": 86400,
+        "top_apps": [
+            {
+                "application_id": 42,
+                "application_name": "netflix",
+                "total_download": 1000,
+                "total_upload": 50,
+                "total_packets": 12,
+            }
+        ],
+    }
+    apps = await glinet.flow_stats_top_apps()
+    assert apps[0]["application_name"] == "netflix"
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call", ["flow_statistics", "get_top_app_flow_statistics", {}], "SID"
+    )
+
+
+async def test_flow_stats_top_apps_empty_when_disabled(glinet):
+    # disabled, the firmware answers a bare list
+    glinet._transport.request.return_value = []
+    assert await glinet.flow_stats_top_apps() == []
+
+
+async def test_network_acceleration_returns_config(glinet):
+    glinet._transport.request.return_value = {
+        "dpi_enabled": True,
+        "enable": False,
+        "qos_enabled": False,
+        "actype": 1,
+    }
+    accel = await glinet.network_acceleration()
+    assert accel["enable"] is False
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call", ["network", "get_netnat_config", {}], "SID"
+    )
+
+
 async def test_adguard_config_returns_flags(glinet):
     glinet._transport.request.return_value = {"enabled": True, "dns_enabled": True}
     config = await glinet.adguard_config()

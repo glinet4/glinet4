@@ -226,6 +226,45 @@ async def test_client_block_unblock() -> None:
         assert mac not in await router.blocked_client_macs()
 
 
+async def test_flow_stats_rule() -> None:
+    """Test retrieving the flow-statistics rule."""
+    rule = await router.flow_stats_rule()
+    print(rule)
+    assert rule["enable"] in [True, False]
+
+
+async def test_flow_stats_top_apps() -> None:
+    """Test retrieving top apps (list in both enabled/disabled states)."""
+    apps = await router.flow_stats_top_apps()
+    print(apps)
+    assert isinstance(apps, list)
+
+
+async def test_network_acceleration() -> None:
+    """Test retrieving the NAT acceleration state."""
+    accel = await router.network_acceleration()
+    print(accel)
+    assert accel["enable"] in [True, False]
+
+
+async def test_flow_stats_enable_disable() -> None:
+    """Enable then disable flow statistics, restoring the original state."""
+    assert PERFORM_DISTRUPTIVE_TESTS, (
+        "Disruptive tests are disabled, set PERFORM_DISTRUPTIVE_TESTS to True to run this test."
+    )
+    base = await router.flow_stats_rule()
+    if base["enable"]:
+        pytest.skip("stats already enabled; not toggling to preserve state")
+    try:
+        await router.flow_stats_set_enabled(True, base["type"], base["time"])
+        await asyncio.sleep(2)
+        assert (await router.flow_stats_rule())["enable"] is True
+    finally:
+        await router.flow_stats_set_enabled(False, base["type"], base["time"])
+        await asyncio.sleep(2)
+        assert (await router.flow_stats_rule())["enable"] is False
+
+
 async def test_adguard_config() -> None:
     """Test retrieving the AdGuard Home config."""
     config = await router.adguard_config()

@@ -175,6 +175,33 @@ class WanAccessConfig(TypedDict, total=False):
     whitelist: list[str]
 
 
+class FlowStatsRule(TypedDict, total=False):
+    """``flow_statistics get_statistics_rule``."""
+
+    enable: bool
+    type: str
+    time: str
+
+
+class FlowStatsApp(TypedDict, total=False):
+    """An app entry from ``flow_statistics get_top_app_flow_statistics``."""
+
+    application_id: int
+    application_name: str
+    total_download: int
+    total_upload: int
+    total_packets: int
+
+
+class NetworkAcceleration(TypedDict, total=False):
+    """``network get_netnat_config`` — the NAT/DPI acceleration state."""
+
+    enable: bool
+    dpi_enabled: bool
+    qos_enabled: bool
+    actype: int
+
+
 class AdguardConfig(TypedDict, total=False):
     """``adguardhome get_config``."""
 
