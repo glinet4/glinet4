@@ -215,6 +215,40 @@ async def test_wifi_mlo_config_extracts_res(glinet):
     )
 
 
+async def test_tailscale_auth_url_returns_url_when_available(glinet):
+    glinet._transport.request.return_value = {
+        "auth_url": "https://login.tailscale.com/a/0123456789ab"
+    }
+    assert await glinet.tailscale_auth_url() == "https://login.tailscale.com/a/0123456789ab"
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call", ["tailscale", "get_auth_url", {}], "SID"
+    )
+
+
+async def test_tailscale_auth_url_returns_none_when_not_available(glinet):
+    glinet._transport.request.return_value = []
+    assert await glinet.tailscale_auth_url() is None
+
+
+async def test_tailscale_exit_node_list_returns_nodes(glinet):
+    glinet._transport.request.return_value = [{"name": "node-a", "online": True}]
+    assert await glinet.tailscale_exit_node_list() == [{"name": "node-a", "online": True}]
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call", ["tailscale", "get_exit_node_list", {}], "SID"
+    )
+
+
+async def test_tailscale_exit_node_list_empty_when_no_nodes(glinet):
+    glinet._transport.request.return_value = []
+    assert await glinet.tailscale_exit_node_list() == []
+
+
+async def test_tailscale_connection_state_handles_status_missing(glinet):
+    # transiently observed right after enabling tailscale on fw 4.9
+    glinet._transport.request.return_value = {"dns": ["192.0.2.53"]}
+    assert await glinet.tailscale_connection_state() == TailscaleConnection.DISCONNECTED
+
+
 async def test_led_config_returns_state(glinet):
     glinet._transport.request.return_value = {"led_enable": False}
     config = await glinet.led_config()

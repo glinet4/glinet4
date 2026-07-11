@@ -251,11 +251,12 @@ class NetworkInterfaceStatus(TypedDict, total=False):
 
 
 class TailscaleStatus(TypedDict, total=False):
-    """``tailscale get_status``."""
+    """``tailscale get_status`` — ``status`` may be absent right after enabling."""
 
     login_name: str
     status: int
     address_v4: str
+    dns: list[str]
 
 
 class TailscaleConfig(TypedDict, total=False):
@@ -265,3 +266,5 @@ class TailscaleConfig(TypedDict, total=False):
     wan_enabled: bool
     lan_enabled: bool
     lan_ip: str
+    masq: bool
+    run_exit_node: bool

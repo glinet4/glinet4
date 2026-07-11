@@ -491,6 +491,23 @@ class GLinet:
             return TailscaleConnection.DISCONNECTED
         return TailscaleConnection(state.get("status", 0))
 
+    async def tailscale_auth_url(self) -> str | None:
+        """Return the tailscale login URL, or None once authentication is complete."""
+        response = await self._transport.request(
+            self._payload("call", ["tailscale", "get_auth_url", {}])
+        )
+        if isinstance(response, dict):
+            url: str | None = response.get("auth_url")
+            return url
+        return None
+
+    async def tailscale_exit_node_list(self) -> list[dict[str, Any]]:
+        """Return tailnet nodes usable as exit nodes; empty when none are available."""
+        result: list[dict[str, Any]] = await self._transport.request(
+            self._payload("call", ["tailscale", "get_exit_node_list", {}])
+        )
+        return result
+
     async def tailscale_configured(self) -> bool:
         """Return True if tailscale is configured."""
         try:

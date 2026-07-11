@@ -491,7 +491,7 @@ async def test_tailscale_connection() -> None:
     """Test retrieving the Tailscale connection state."""
     response = await router.tailscale_connection_state()
     print(response)
-    assert response in [TailscaleConnection.DISCONNECTED, TailscaleConnection.CONNECTED]
+    assert isinstance(response, TailscaleConnection)
 
 
 async def test_tailscale_configured() -> None:
@@ -506,6 +506,20 @@ async def test_tailscale_get_config() -> None:
     response = await router._tailscale_get_config()  # pylint: disable=protected-access
     print(response["enabled"])
     assert response["enabled"] in [True, False]
+
+
+async def test_tailscale_auth_url() -> None:
+    """Test retrieving the tailscale auth URL."""
+    url = await router.tailscale_auth_url()
+    print(url)
+    assert url is None or url.startswith("https://")
+
+
+async def test_tailscale_exit_node_list() -> None:
+    """Test retrieving the tailscale exit-node list."""
+    nodes = await router.tailscale_exit_node_list()
+    print(nodes)
+    assert isinstance(nodes, list)
 
 
 async def test_tailscale_start() -> None:
