@@ -23,6 +23,7 @@ from ._types import (
     DiskInfo,
     EthernetPortStatus,
     FirmwareCheck,
+    MloConfig,
     NetworkInterfaceStatus,
     RouterInfo,
     RouterStatus,
@@ -36,6 +37,7 @@ from ._types import (
     WanInterfaceInfo,
     WanStatus,
     WifiIface,
+    WifiRadioStatus,
     WireguardClientConfig,
     WireguardClientStatus,
 )
@@ -277,6 +279,20 @@ class GLinet:
     async def _wifi_config_get(self) -> Any:
         """Retrieve the raw wifi configuration."""
         return await self._transport.request(self._payload("call", ["wifi", "get_config"]))
+
+    async def wifi_status(self) -> list[WifiRadioStatus]:
+        """Return per-radio wifi status (band, channel, state)."""
+        response = await self._transport.request(self._payload("call", ["wifi", "get_status", {}]))
+        result: list[WifiRadioStatus] = response.get("res", [])
+        return result
+
+    async def wifi_mlo_config(self) -> MloConfig:
+        """Return the MLO (WiFi 7 multi-link) configuration."""
+        response = await self._transport.request(
+            self._payload("call", ["wifi", "get_mlo_config", {}])
+        )
+        result: MloConfig = response.get("res", {})
+        return result
 
     async def _wifi_config_set(self, config: dict[str, Any]) -> Any:
         """Apply a wifi configuration change."""

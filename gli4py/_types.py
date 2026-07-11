@@ -138,6 +138,23 @@ class ClientsStatus(TypedDict, total=False):
     wireless_total: int
 
 
+class WifiRadioStatus(TypedDict, total=False):
+    """A radio entry from ``wifi get_status``."""
+
+    band: str
+    channel: int
+    name: str
+    state: str
+
+
+class MloConfig(TypedDict, total=False):
+    """``wifi get_mlo_config`` (the ``res`` object)."""
+
+    encryptions: list[str]
+    ifaces: list[dict[str, Any]]
+    random_bssid: bool
+
+
 class WanCableState(TypedDict, total=False):
     """``network check_wan_cable``."""
 

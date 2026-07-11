@@ -7,6 +7,7 @@ from ._types import (
     DiskUsage,
     EthernetPortStatus,
     FirmwareCheck,
+    MloConfig,
     NetworkInterfaceStatus,
     RouterInfo,
     RouterStatus,
@@ -22,6 +23,7 @@ from ._types import (
     WanIPv4Status,
     WanStatus,
     WifiIface,
+    WifiRadioStatus,
     WireguardClientConfig,
     WireguardClientStatus,
 )
@@ -37,6 +39,7 @@ __all__ = [
     "DiskUsage",
     "EthernetPortStatus",
     "FirmwareCheck",
+    "MloConfig",
     "NetworkInterfaceStatus",
     "RouterInfo",
     "RouterStatus",
@@ -52,6 +55,7 @@ __all__ = [
     "WanIPv4Status",
     "WanStatus",
     "WifiIface",
+    "WifiRadioStatus",
     "WireguardClientConfig",
     "WireguardClientStatus",
 ]

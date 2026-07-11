@@ -185,6 +185,36 @@ async def test_tailscale_stop_already_disconnected_status_zero_returns_true(glin
     assert await glinet.tailscale_stop() is True
 
 
+async def test_wifi_status_extracts_radio_list(glinet):
+    glinet._transport.request.return_value = {
+        "res": [
+            {"band": "2g", "channel": 6, "name": "mt798611", "state": "ready"},
+            {"band": "5g", "channel": 149, "name": "mt798612", "state": "ready"},
+        ]
+    }
+    radios = await glinet.wifi_status()
+    assert radios == glinet._transport.request.return_value["res"]
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call", ["wifi", "get_status", {}], "SID"
+    )
+
+
+async def test_wifi_status_returns_empty_list_when_key_missing(glinet):
+    glinet._transport.request.return_value = {}
+    assert await glinet.wifi_status() == []
+
+
+async def test_wifi_mlo_config_extracts_res(glinet):
+    glinet._transport.request.return_value = {
+        "res": {"encryptions": ["none"], "ifaces": [], "random_bssid": False}
+    }
+    config = await glinet.wifi_mlo_config()
+    assert config == {"encryptions": ["none"], "ifaces": [], "random_bssid": False}
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call", ["wifi", "get_mlo_config", {}], "SID"
+    )
+
+
 async def test_wan_cable_state_calls_route_and_returns_flags(glinet):
     glinet._transport.request.return_value = {
         "cable_enabled": True,

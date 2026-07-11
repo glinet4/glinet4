@@ -182,6 +182,23 @@ async def test_ping() -> None:
     assert not response
 
 
+async def test_wifi_status() -> None:
+    """Test retrieving per-radio wifi status."""
+    radios = await router.wifi_status()
+    print(radios)
+    assert len(radios) > 0
+    for radio in radios:
+        assert "band" in radio
+        assert "state" in radio
+
+
+async def test_wifi_mlo_config() -> None:
+    """Test retrieving the MLO configuration."""
+    config = await router.wifi_mlo_config()
+    print(config)
+    assert isinstance(config, dict)
+
+
 async def test_firmware_check_online() -> None:
     """Test checking online for a firmware update."""
     check = await router.firmware_check_online()
