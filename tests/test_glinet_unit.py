@@ -298,6 +298,36 @@ async def test_tailscale_connection_state_handles_status_missing(glinet):
     assert await glinet.tailscale_connection_state() == TailscaleConnection.DISCONNECTED
 
 
+async def test_adguard_config_returns_flags(glinet):
+    glinet._transport.request.return_value = {"enabled": True, "dns_enabled": True}
+    config = await glinet.adguard_config()
+    assert config["enabled"] is True
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call", ["adguardhome", "get_config", {}], "SID"
+    )
+
+
+async def test_tor_config_returns_flags(glinet):
+    glinet._transport.request.return_value = {"enable": False, "countries": [], "manual": False}
+    assert await glinet.tor_config() == {"enable": False, "countries": [], "manual": False}
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call", ["tor", "get_config", {}], "SID"
+    )
+
+
+async def test_zerotier_config_returns_flags(glinet):
+    glinet._transport.request.return_value = {
+        "enabled": False,
+        "wan_enabled": False,
+        "lan_enabled": False,
+    }
+    config = await glinet.zerotier_config()
+    assert config["enabled"] is False
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call", ["zerotier", "get_config", {}], "SID"
+    )
+
+
 async def test_led_config_returns_state(glinet):
     glinet._transport.request.return_value = {"led_enable": False}
     config = await glinet.led_config()

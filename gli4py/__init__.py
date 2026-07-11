@@ -1,6 +1,7 @@
 """gli4py - A Python library for GL.iNet routers"""
 
 from ._types import (
+    AdguardConfig,
     Client,
     ClientsStatus,
     DiskInfo,
@@ -18,6 +19,7 @@ from ._types import (
     TailscaleExitNode,
     TailscaleStatus,
     TimezoneConfig,
+    TorConfig,
     TrafficSpeed,
     UpgradeConfig,
     UsbInfoEntry,
@@ -31,6 +33,7 @@ from ._types import (
     WifiRadioStatus,
     WireguardClientConfig,
     WireguardClientStatus,
+    ZerotierConfig,
 )
 from .enums import TailscaleConnection
 from .glinet import GLinet
@@ -38,6 +41,7 @@ from .glinet import GLinet
 __all__ = [
     "GLinet",
     "TailscaleConnection",
+    "AdguardConfig",
     "Client",
     "ClientsStatus",
     "DiskInfo",
@@ -55,6 +59,7 @@ __all__ = [
     "TailscaleExitNode",
     "TailscaleStatus",
     "TimezoneConfig",
+    "TorConfig",
     "TrafficSpeed",
     "UpgradeConfig",
     "UsbInfoEntry",
@@ -68,4 +73,5 @@ __all__ = [
     "WifiRadioStatus",
     "WireguardClientConfig",
     "WireguardClientStatus",
+    "ZerotierConfig",
 ]

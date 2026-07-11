@@ -175,6 +175,29 @@ class WanAccessConfig(TypedDict, total=False):
     whitelist: list[str]
 
 
+class AdguardConfig(TypedDict, total=False):
+    """``adguardhome get_config``."""
+
+    enabled: bool
+    dns_enabled: bool
+
+
+class TorConfig(TypedDict, total=False):
+    """``tor get_config``."""
+
+    enable: bool
+    manual: bool
+    countries: list[str]
+
+
+class ZerotierConfig(TypedDict, total=False):
+    """``zerotier get_config``."""
+
+    enabled: bool
+    wan_enabled: bool
+    lan_enabled: bool
+
+
 class WifiRadioStatus(TypedDict, total=False):
     """A radio entry from ``wifi get_status``."""
 

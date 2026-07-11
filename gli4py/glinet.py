@@ -18,6 +18,7 @@ from gli4py.enums import TailscaleConnection
 
 from ._transport import GLinetTransport
 from ._types import (
+    AdguardConfig,
     Client,
     ClientsStatus,
     DiskInfo,
@@ -34,6 +35,7 @@ from ._types import (
     TailscaleExitNode,
     TailscaleStatus,
     TimezoneConfig,
+    TorConfig,
     TrafficSpeed,
     UpgradeConfig,
     UsbInfoEntry,
@@ -45,6 +47,7 @@ from ._types import (
     WifiRadioStatus,
     WireguardClientConfig,
     WireguardClientStatus,
+    ZerotierConfig,
 )
 from .error_handling import APIClientError
 
@@ -181,6 +184,27 @@ class GLinet:
         return await self._transport.request(
             self._payload("call", ["system", "reboot", {"delay": delay}])
         )
+
+    async def adguard_config(self) -> AdguardConfig:
+        """Return the AdGuard Home enable/DNS state."""
+        result: AdguardConfig = await self._transport.request(
+            self._payload("call", ["adguardhome", "get_config", {}])
+        )
+        return result
+
+    async def tor_config(self) -> TorConfig:
+        """Return the Tor client configuration."""
+        result: TorConfig = await self._transport.request(
+            self._payload("call", ["tor", "get_config", {}])
+        )
+        return result
+
+    async def zerotier_config(self) -> ZerotierConfig:
+        """Return the ZeroTier configuration."""
+        result: ZerotierConfig = await self._transport.request(
+            self._payload("call", ["zerotier", "get_config", {}])
+        )
+        return result
 
     async def led_config(self) -> LedConfig:
         """Return the LED configuration."""

@@ -203,6 +203,27 @@ async def test_wifi_mlo_config() -> None:
     assert isinstance(config, dict)
 
 
+async def test_adguard_config() -> None:
+    """Test retrieving the AdGuard Home config."""
+    config = await router.adguard_config()
+    print(config)
+    assert config["enabled"] in [True, False]
+
+
+async def test_tor_config() -> None:
+    """Test retrieving the Tor config."""
+    config = await router.tor_config()
+    print(config)
+    assert config["enable"] in [True, False]
+
+
+async def test_zerotier_config() -> None:
+    """Test retrieving the ZeroTier config."""
+    config = await router.zerotier_config()
+    print(config)
+    assert config["enabled"] in [True, False]
+
+
 async def test_led_config() -> None:
     """Test retrieving the LED configuration."""
     config = await router.led_config()
