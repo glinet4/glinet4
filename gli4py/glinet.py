@@ -503,10 +503,18 @@ class GLinet:
         return None
 
     async def tailscale_exit_node_list(self) -> list[TailscaleExitNode]:
-        """Return tailnet nodes usable as exit nodes; empty when none are available."""
-        result: list[TailscaleExitNode] = await self._transport.request(
+        """Return tailnet nodes usable as exit nodes; empty when none are available.
+
+        Logged out, the firmware answers a bare list; connected, it wraps the
+        list as ``{"exit_node_list": [...]}``.
+        """
+        response = await self._transport.request(
             self._payload("call", ["tailscale", "get_exit_node_list", {}])
         )
+        if isinstance(response, dict):
+            wrapped: list[TailscaleExitNode] = response.get("exit_node_list", [])
+            return wrapped
+        result: list[TailscaleExitNode] = response if isinstance(response, list) else []
         return result
 
     async def tailscale_configured(self) -> bool:

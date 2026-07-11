@@ -243,8 +243,24 @@ async def test_tailscale_exit_node_list_returns_nodes(glinet):
     )
 
 
-async def test_tailscale_exit_node_list_empty_when_no_nodes(glinet):
+async def test_tailscale_exit_node_list_empty_when_logged_out(glinet):
+    # logged out, the firmware answers a bare list
     glinet._transport.request.return_value = []
+    assert await glinet.tailscale_exit_node_list() == []
+
+
+async def test_tailscale_exit_node_list_unwraps_connected_shape(glinet):
+    # connected, the firmware wraps the list: {"exit_node_list": [...]}
+    glinet._transport.request.return_value = {
+        "exit_node_list": [{"ip": "100.64.0.2", "location": "Australia, Brisbane"}]
+    }
+    assert await glinet.tailscale_exit_node_list() == [
+        {"ip": "100.64.0.2", "location": "Australia, Brisbane"}
+    ]
+
+
+async def test_tailscale_exit_node_list_connected_but_empty(glinet):
+    glinet._transport.request.return_value = {"exit_node_list": []}
     assert await glinet.tailscale_exit_node_list() == []
 
 
