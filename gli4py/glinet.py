@@ -19,12 +19,14 @@ from gli4py.enums import TailscaleConnection
 from ._transport import GLinetTransport
 from ._types import (
     Client,
+    ClientsStatus,
     EthernetPortStatus,
     NetworkInterfaceStatus,
     RouterInfo,
     RouterStatus,
     TailscaleConfig,
     TailscaleStatus,
+    TrafficSpeed,
     WanCableState,
     WanInterfaceInfo,
     WanStatus,
@@ -190,6 +192,27 @@ class GLinet:
             self._payload("call", ["system", "get_network_status"])
         )
         result: list[NetworkInterfaceStatus] = response.get("network", [])
+        return result
+
+    async def clients_speed(self) -> TrafficSpeed:
+        """Return aggregate client-side rx/tx rates in bytes per second."""
+        result: TrafficSpeed = await self._transport.request(
+            self._payload("call", ["clients", "get_speed", {}])
+        )
+        return result
+
+    async def wan_speed(self) -> TrafficSpeed:
+        """Return WAN rx/tx rates in bytes per second."""
+        result: TrafficSpeed = await self._transport.request(
+            self._payload("call", ["clients", "get_wan_speed", {}])
+        )
+        return result
+
+    async def clients_status(self) -> ClientsStatus:
+        """Return wired/wireless client counts."""
+        result: ClientsStatus = await self._transport.request(
+            self._payload("call", ["clients", "get_status", {}])
+        )
         return result
 
     async def list_all_clients(self) -> dict[str, list[Client]]:

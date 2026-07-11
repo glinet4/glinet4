@@ -282,3 +282,37 @@ async def test_network_interfaces_status_extracts_list(glinet):
 async def test_network_interfaces_status_returns_empty_list_when_key_missing(glinet):
     glinet._transport.request.return_value = {}
     assert await glinet.network_interfaces_status() == []
+
+
+async def test_clients_speed_calls_route_and_returns_rates(glinet):
+    glinet._transport.request.return_value = {"speed_rx": 4473, "speed_tx": 2775}
+    speed = await glinet.clients_speed()
+    assert speed["speed_rx"] == 4473
+    assert speed["speed_tx"] == 2775
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call", ["clients", "get_speed", {}], "SID"
+    )
+
+
+async def test_wan_speed_calls_route_and_returns_rates(glinet):
+    glinet._transport.request.return_value = {"speed_rx": 4582, "speed_tx": 2926}
+    speed = await glinet.wan_speed()
+    assert speed["speed_rx"] == 4582
+    assert speed["speed_tx"] == 2926
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call", ["clients", "get_wan_speed", {}], "SID"
+    )
+
+
+async def test_clients_status_calls_route_and_returns_totals(glinet):
+    glinet._transport.request.return_value = {
+        "auto_remove_offline": False,
+        "cable_total": 3,
+        "wireless_total": 12,
+    }
+    status = await glinet.clients_status()
+    assert status["cable_total"] == 3
+    assert status["wireless_total"] == 12
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call", ["clients", "get_status", {}], "SID"
+    )

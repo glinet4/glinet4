@@ -182,6 +182,30 @@ async def test_ping() -> None:
     assert not response
 
 
+async def test_clients_speed() -> None:
+    """Test retrieving aggregate client rx/tx rates."""
+    speed = await router.clients_speed()
+    print(speed)
+    assert speed["speed_rx"] >= 0
+    assert speed["speed_tx"] >= 0
+
+
+async def test_wan_speed() -> None:
+    """Test retrieving WAN rx/tx rates."""
+    speed = await router.wan_speed()
+    print(speed)
+    assert speed["speed_rx"] >= 0
+    assert speed["speed_tx"] >= 0
+
+
+async def test_clients_status() -> None:
+    """Test retrieving wired/wireless client counts."""
+    status = await router.clients_status()
+    print(status)
+    assert status["cable_total"] >= 0
+    assert status["wireless_total"] >= 0
+
+
 async def test_wan_cable_state() -> None:
     """Test retrieving WAN cable state."""
     response = await router.wan_cable_state()

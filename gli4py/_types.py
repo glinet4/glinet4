@@ -72,6 +72,21 @@ class WireguardClientStatus(TypedDict, total=False):
     tx_bytes: int
 
 
+class TrafficSpeed(TypedDict, total=False):
+    """``clients get_speed`` / ``clients get_wan_speed`` — bytes per second."""
+
+    speed_rx: int
+    speed_tx: int
+
+
+class ClientsStatus(TypedDict, total=False):
+    """``clients get_status`` — client-count summary."""
+
+    auto_remove_offline: bool
+    cable_total: int
+    wireless_total: int
+
+
 class WanCableState(TypedDict, total=False):
     """``network check_wan_cable``."""
 
