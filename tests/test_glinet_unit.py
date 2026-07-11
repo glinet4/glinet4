@@ -231,8 +231,13 @@ async def test_tailscale_auth_url_returns_none_when_not_available(glinet):
 
 
 async def test_tailscale_exit_node_list_returns_nodes(glinet):
-    glinet._transport.request.return_value = [{"name": "node-a", "online": True}]
-    assert await glinet.tailscale_exit_node_list() == [{"name": "node-a", "online": True}]
+    # item shape per the firmware's RPC source: ip + location (+ provider for mullvad)
+    nodes = [
+        {"ip": "100.64.0.2", "location": "Australia, Brisbane"},
+        {"ip": "100.64.0.3", "location": "au-bne-wg-001", "provider": "mullvad"},
+    ]
+    glinet._transport.request.return_value = nodes
+    assert await glinet.tailscale_exit_node_list() == nodes
     glinet._transport.build_sid_payload.assert_called_once_with(
         "call", ["tailscale", "get_exit_node_list", {}], "SID"
     )

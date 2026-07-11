@@ -31,6 +31,7 @@ from ._types import (
     RouterInfo,
     RouterStatus,
     TailscaleConfig,
+    TailscaleExitNode,
     TailscaleStatus,
     TimezoneConfig,
     TrafficSpeed,
@@ -501,9 +502,9 @@ class GLinet:
             return url
         return None
 
-    async def tailscale_exit_node_list(self) -> list[dict[str, Any]]:
+    async def tailscale_exit_node_list(self) -> list[TailscaleExitNode]:
         """Return tailnet nodes usable as exit nodes; empty when none are available."""
-        result: list[dict[str, Any]] = await self._transport.request(
+        result: list[TailscaleExitNode] = await self._transport.request(
             self._payload("call", ["tailscale", "get_exit_node_list", {}])
         )
         return result

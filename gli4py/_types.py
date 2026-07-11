@@ -250,6 +250,19 @@ class NetworkInterfaceStatus(TypedDict, total=False):
     up: bool
 
 
+class TailscaleExitNode(TypedDict, total=False):
+    """An entry from ``tailscale get_exit_node_list``.
+
+    Shape from the firmware's RPC source (fw 4.9.0): ``ip`` is the node's
+    first tailscale IP, ``location`` is "Country, City", the DNS-name prefix,
+    or "Unknown location", and ``provider`` is present only for Mullvad nodes.
+    """
+
+    ip: str
+    location: str
+    provider: str
+
+
 class TailscaleStatus(TypedDict, total=False):
     """``tailscale get_status`` — ``status`` may be absent right after enabling."""
 
