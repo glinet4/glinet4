@@ -1,4 +1,4 @@
-"""This module defines enums for various states and types used in the GL-inet API client."""
+"""This module defines enums for various states and types used in the GL.iNet API client."""
 
 from enum import IntEnum
 

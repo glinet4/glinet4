@@ -38,7 +38,7 @@ async def raise_for_status(response: ClientResponse) -> Any:
             f"Request failed or returned invalid JSON (Status {response.status}): {text}"
         ) from exc
 
-    # 2. Process the GL-iNet logic
+    # 2. Process the GL.iNet logic
     if 200 <= response.status < 300:
         if "result" in res:
             return res["result"]

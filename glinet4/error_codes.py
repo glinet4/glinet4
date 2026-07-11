@@ -1,7 +1,7 @@
-"""A module containing error codes and their corresponding messages for the GL-inet API."""
+"""A module containing error codes and their corresponding messages for the GL.iNet API."""
 
 ERROR_CODES = {
-    # This is a copy of the error codes and their messages from the GL-inet API discovered during testing
+    # This is a copy of the error codes and their messages from the GL.iNet API discovered during testing
     # It should be based on the JSON-RPC error codes https://www.jsonrpc.org/specification#error_object
     "-1": "Invalid user, permission denied or not logged in!",
     "-250": "Modem not found",

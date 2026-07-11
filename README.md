@@ -1,5 +1,7 @@
 # glinet4
 
+[![PyPI](https://img.shields.io/pypi/v/glinet4)](https://pypi.org/project/glinet4/) [![License: GPL-3.0](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+
 An async Python 3 API wrapper for [GL.iNet](https://www.gl-inet.com/) routers running version 4.x firmware.
 
 GL.iNet routers are built on [OpenWRT](https://openwrt.org/) and expose a local [JSON-RPC API](https://web.archive.org/web/20240121142533/https://dev.gl-inet.com/router-4.x-api/). `glinet4` wraps that API for easy integration into other services such as [Home Assistant](https://www.home-assistant.io/).
@@ -52,3 +54,7 @@ Todo list:
 - [x] Test that dev enviroment is re-producable
 - [x] Publish on pip
 - [x] Static typing
+
+---
+
+Part of the **[glinet4](https://github.com/glinet4)** project — [glinet4](https://github.com/glinet4/glinet4) (Python library) · [glinet4-ha](https://github.com/glinet4/glinet4-ha) (Home Assistant) · [glinet4-profiler](https://github.com/glinet4/glinet4-profiler) · [glinet4-registry](https://github.com/glinet4/glinet4-registry)
