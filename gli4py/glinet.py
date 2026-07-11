@@ -192,10 +192,17 @@ class GLinet:
         return result
 
     async def ping(self, address: str) -> bool:
-        """Ping an address from the router; True if reachable."""
+        """Ping an address from the router; True if reachable.
+
+        Firmware 4.9 returns ``{"ping_result": "<ping stdout>"}`` even on
+        failure, so reachability means at least one reply line; older
+        firmware returns ``[]`` when unsuccessful.
+        """
         result = await self._transport.request_long_timeout(
             self._payload("call", ["diag", "ping", {"addr": address}])
         )
+        if isinstance(result, dict) and "ping_result" in result:
+            return "bytes from" in result["ping_result"]
         return not result == []
 
     async def connected_to_internet(self) -> Any:

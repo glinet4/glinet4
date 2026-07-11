@@ -215,6 +215,35 @@ async def test_wifi_mlo_config_extracts_res(glinet):
     )
 
 
+async def test_ping_fw49_replies_returns_true(glinet):
+    glinet._transport.request_long_timeout.return_value = {
+        "ping_result": (
+            "PING 8.8.8.8 (8.8.8.8): 56 data bytes\n"
+            "64 bytes from 8.8.8.8: seq=0 ttl=119 time=9.320 ms\n"
+        )
+    }
+    assert await glinet.ping("8.8.8.8") is True
+
+
+async def test_ping_fw49_no_replies_returns_false(glinet):
+    glinet._transport.request_long_timeout.return_value = {
+        "ping_result": "PING 0.0.0.1 (0.0.0.1): 56 data bytes\n"
+    }
+    assert await glinet.ping("0.0.0.1") is False
+
+
+async def test_ping_fw49_unreachable_returns_false(glinet):
+    glinet._transport.request_long_timeout.return_value = {
+        "ping_result": "destination host unreachable"
+    }
+    assert await glinet.ping("no-such-host.invalid") is False
+
+
+async def test_ping_old_firmware_empty_result_returns_false(glinet):
+    glinet._transport.request_long_timeout.return_value = []
+    assert await glinet.ping("8.8.8.8") is False
+
+
 async def test_wan_cable_state_calls_route_and_returns_flags(glinet):
     glinet._transport.request.return_value = {
         "cable_enabled": True,
