@@ -264,6 +264,34 @@ async def test_tailscale_exit_node_list_connected_but_empty(glinet):
     assert await glinet.tailscale_exit_node_list() == []
 
 
+async def test_tailscale_set_exit_node_merges_ip_into_config(glinet):
+    glinet._transport.request.side_effect = [
+        {"enabled": True, "run_exit_node": False},
+        {},
+    ]
+    await glinet.tailscale_set_exit_node("100.64.0.2")
+    last_call = glinet._transport.build_sid_payload.call_args_list[-1]
+    assert last_call.args == (
+        "call",
+        [
+            "tailscale",
+            "set_config",
+            {"enabled": True, "run_exit_node": False, "exit_node_ip": "100.64.0.2"},
+        ],
+        "SID",
+    )
+
+
+async def test_tailscale_set_exit_node_none_clears_with_empty_string(glinet):
+    glinet._transport.request.side_effect = [
+        {"enabled": True, "exit_node_ip": "100.64.0.2"},
+        {},
+    ]
+    await glinet.tailscale_set_exit_node(None)
+    last_call = glinet._transport.build_sid_payload.call_args_list[-1]
+    assert last_call.args[1][2]["exit_node_ip"] == ""
+
+
 async def test_tailscale_connection_state_handles_status_missing(glinet):
     # transiently observed right after enabling tailscale on fw 4.9
     glinet._transport.request.return_value = {"dns": ["192.0.2.53"]}

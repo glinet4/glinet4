@@ -517,6 +517,17 @@ class GLinet:
         result: list[TailscaleExitNode] = response if isinstance(response, list) else []
         return result
 
+    async def tailscale_set_exit_node(self, ip: str | None) -> Any:
+        """Route the router's traffic through a tailnet exit node.
+
+        ``ip`` must come from :meth:`tailscale_exit_node_list`; ``None``
+        clears the exit node (the firmware clears on an empty string). The
+        firmware rejects setting an exit node while ``run_exit_node`` is
+        enabled, and applying the change re-runs ``tailscale up`` on the
+        router, which briefly interrupts tailscale traffic.
+        """
+        return await self._tailscale_set_config({"exit_node_ip": ip or ""})
+
     async def tailscale_configured(self) -> bool:
         """Return True if tailscale is configured."""
         try:

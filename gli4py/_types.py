@@ -273,7 +273,7 @@ class TailscaleStatus(TypedDict, total=False):
 
 
 class TailscaleConfig(TypedDict, total=False):
-    """``tailscale get_config``."""
+    """``tailscale get_config`` — ``exit_node_ip`` present only when one is set."""
 
     enabled: bool
     wan_enabled: bool
@@ -281,3 +281,4 @@ class TailscaleConfig(TypedDict, total=False):
     lan_ip: str
     masq: bool
     run_exit_node: bool
+    exit_node_ip: str
