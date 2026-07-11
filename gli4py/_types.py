@@ -72,6 +72,64 @@ class WireguardClientStatus(TypedDict, total=False):
     tx_bytes: int
 
 
+class WanCableState(TypedDict, total=False):
+    """``network check_wan_cable``."""
+
+    cable_enabled: bool
+    cable_inserted: bool
+    macclone_enabled: bool
+
+
+class WanIPv4Status(TypedDict, total=False):
+    """IPv4 details inside ``cable get_status``."""
+
+    dns: list[str]
+    gateway: str
+    ip: str
+
+
+class WanStatus(TypedDict, total=False):
+    """``cable get_status`` — WAN connection status."""
+
+    ipv4: WanIPv4Status
+    mode: int
+    protocol: str
+    status: int
+
+
+class WanInterfaceAddress(TypedDict, total=False):
+    """Address details inside a ``lan get_wan_info`` entry."""
+
+    broadcast: str
+    ipaddr: str
+    netmask: str
+    network: str
+    prefix: int
+
+
+class WanInterfaceInfo(TypedDict, total=False):
+    """A WAN interface entry from ``lan get_wan_info``."""
+
+    info: WanInterfaceAddress
+    interface: str
+
+
+class EthernetPortStatus(TypedDict, total=False):
+    """A port entry from ``cable get_ports_status``."""
+
+    duplex: str
+    name: str
+    speed: int
+
+
+class NetworkInterfaceStatus(TypedDict, total=False):
+    """An interface entry from ``system get_network_status``."""
+
+    interface: str
+    online: bool
+    up: bool
+
+
 class TailscaleStatus(TypedDict, total=False):
     """``tailscale get_status``."""
 

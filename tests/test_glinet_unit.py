@@ -183,3 +183,102 @@ async def test_tailscale_stop_disables_when_connected(glinet):
 async def test_tailscale_stop_already_disconnected_status_zero_returns_true(glinet):
     glinet._transport.request.return_value = {"status": 0}
     assert await glinet.tailscale_stop() is True
+
+
+async def test_wan_cable_state_calls_route_and_returns_flags(glinet):
+    glinet._transport.request.return_value = {
+        "cable_enabled": True,
+        "cable_inserted": True,
+        "macclone_enabled": False,
+    }
+    state = await glinet.wan_cable_state()
+    assert state["cable_inserted"] is True
+    assert state["macclone_enabled"] is False
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call", ["network", "check_wan_cable", {}], "SID"
+    )
+
+
+async def test_wan_status_calls_route_and_returns_connection_details(glinet):
+    glinet._transport.request.return_value = {
+        "ipv4": {"dns": ["192.0.2.53"], "gateway": "192.0.2.1", "ip": "192.0.2.10/24"},
+        "mode": 0,
+        "protocol": "dhcp",
+        "status": 1,
+    }
+    status = await glinet.wan_status()
+    assert status["protocol"] == "dhcp"
+    assert status["ipv4"]["gateway"] == "192.0.2.1"
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call", ["cable", "get_status"], "SID"
+    )
+
+
+async def test_wan_info_extracts_interface_list(glinet):
+    glinet._transport.request.return_value = {
+        "wan_info": [
+            {
+                "info": {
+                    "broadcast": "192.0.2.255",
+                    "ipaddr": "192.0.2.10",
+                    "netmask": "255.255.255.0",
+                    "network": "192.0.2.0",
+                    "prefix": 24,
+                },
+                "interface": "wan",
+            }
+        ]
+    }
+    info = await glinet.wan_info()
+    assert info == glinet._transport.request.return_value["wan_info"]
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call", ["lan", "get_wan_info"], "SID"
+    )
+
+
+async def test_wan_info_returns_empty_list_when_key_missing(glinet):
+    glinet._transport.request.return_value = {}
+    assert await glinet.wan_info() == []
+
+
+async def test_ethernet_ports_status_extracts_ports(glinet):
+    glinet._transport.request.return_value = {
+        "ports": [{"duplex": "full", "name": "WAN", "speed": 1000}]
+    }
+    ports = await glinet.ethernet_ports_status()
+    assert ports == [{"duplex": "full", "name": "WAN", "speed": 1000}]
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call", ["cable", "get_ports_status"], "SID"
+    )
+
+
+async def test_ethernet_ports_status_returns_empty_list_when_key_missing(glinet):
+    glinet._transport.request.return_value = {}
+    assert await glinet.ethernet_ports_status() == []
+
+
+async def test_network_mode_extracts_mode(glinet):
+    glinet._transport.request.return_value = {"mode": "router"}
+    assert await glinet.network_mode() == "router"
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call", ["netmode", "get_mode"], "SID"
+    )
+
+
+async def test_network_interfaces_status_extracts_list(glinet):
+    glinet._transport.request.return_value = {
+        "network": [
+            {"interface": "wan", "online": True, "up": True},
+            {"interface": "modem_1_1_2_6", "online": True, "up": False},
+        ]
+    }
+    interfaces = await glinet.network_interfaces_status()
+    assert interfaces == glinet._transport.request.return_value["network"]
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call", ["system", "get_network_status"], "SID"
+    )
+
+
+async def test_network_interfaces_status_returns_empty_list_when_key_missing(glinet):
+    glinet._transport.request.return_value = {}
+    assert await glinet.network_interfaces_status() == []

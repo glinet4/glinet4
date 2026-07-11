@@ -19,10 +19,15 @@ from gli4py.enums import TailscaleConnection
 from ._transport import GLinetTransport
 from ._types import (
     Client,
+    EthernetPortStatus,
+    NetworkInterfaceStatus,
     RouterInfo,
     RouterStatus,
     TailscaleConfig,
     TailscaleStatus,
+    WanCableState,
+    WanInterfaceInfo,
+    WanStatus,
     WifiIface,
     WireguardClientConfig,
     WireguardClientStatus,
@@ -144,6 +149,48 @@ class GLinet:
     async def connected_to_internet(self) -> Any:
         """Return the upstream/edge-router connectivity status."""
         return await self._transport.request(self._payload("call", ["edgerouter", "get_status"]))
+
+    async def wan_cable_state(self) -> WanCableState:
+        """Return WAN cable presence and macclone flags."""
+        result: WanCableState = await self._transport.request(
+            self._payload("call", ["network", "check_wan_cable", {}])
+        )
+        return result
+
+    async def wan_status(self) -> WanStatus:
+        """Return the WAN connection status (protocol, IPv4 address/gateway/DNS)."""
+        result: WanStatus = await self._transport.request(
+            self._payload("call", ["cable", "get_status"])
+        )
+        return result
+
+    async def wan_info(self) -> list[WanInterfaceInfo]:
+        """Return address details for each WAN interface."""
+        response = await self._transport.request(self._payload("call", ["lan", "get_wan_info"]))
+        result: list[WanInterfaceInfo] = response.get("wan_info", [])
+        return result
+
+    async def ethernet_ports_status(self) -> list[EthernetPortStatus]:
+        """Return link status for each ethernet port."""
+        response = await self._transport.request(
+            self._payload("call", ["cable", "get_ports_status"])
+        )
+        result: list[EthernetPortStatus] = response.get("ports", [])
+        return result
+
+    async def network_mode(self) -> str:
+        """Return the operating mode (e.g. ``router``, ``ap``, ``repeater``)."""
+        response = await self._transport.request(self._payload("call", ["netmode", "get_mode"]))
+        mode: str = response.get("mode", "")
+        return mode
+
+    async def network_interfaces_status(self) -> list[NetworkInterfaceStatus]:
+        """Return online/up state for each network interface."""
+        response = await self._transport.request(
+            self._payload("call", ["system", "get_network_status"])
+        )
+        result: list[NetworkInterfaceStatus] = response.get("network", [])
+        return result
 
     async def list_all_clients(self) -> dict[str, list[Client]]:
         """Get all clients known to the router."""
