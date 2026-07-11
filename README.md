@@ -26,11 +26,30 @@ I thought it would be handy to develop a python 3 wrapper for the API for easy i
 4. deactivate the `ha-env` with `deactivate`
 5. Do steps 3 onwards above
 
+## API coverage
+
+Session: `login`, `router_reachable`. All other methods require login first.
+
+| Area | Methods |
+|---|---|
+| System | `router_info`, `router_get_status`, `router_get_load`, `router_mac`, `router_reboot`, `router_unixtime`, `router_disk_info`, `router_usb_info`, `router_timezone_config` |
+| Network / WAN | `wan_status`, `wan_cable_state`, `wan_info`, `ethernet_ports_status`, `network_mode`, `network_interfaces_status`, `connected_to_internet`, `ping` |
+| Clients | `list_all_clients`, `list_static_clients`, `connected_clients`, `clients_status`, `clients_speed`, `wan_speed` |
+| WiFi | `wifi_ifaces_get`, `wifi_iface_set_enabled`, `wifi_status`, `wifi_mlo_config` |
+| Firmware | `firmware_check_online`, `upgrade_config` |
+| Firewall | `firewall_port_forward_list`, `firewall_dmz`, `firewall_wan_access`, `firewall_rule_list` |
+| LED | `led_config`, `led_set_enabled` |
+| WireGuard | `wireguard_client_list`, `wireguard_client_state`, `wireguard_client_start`, `wireguard_client_stop` |
+| Tailscale | `tailscale_configured`, `tailscale_connection_state`, `tailscale_start`, `tailscale_stop`, `tailscale_auth_url`, `tailscale_exit_node_list` |
+
+Responses are typed with `TypedDict`s (see `gli4py/_types.py`); the package ships `py.typed`.
+The catalogue of routes still to wrap comes from the sanitised device captures in
+[glinet-registry](https://github.com/shauneccles/glinet-registry).
+
 Todo list:
-- [ ] Decide on useful endpoints to expose - see https://github.com/HarvsG/ha-glinet-integration#todo
-- [ ] Expose said endpoints
-- [ ] Write remaining
+- [x] Decide on useful endpoints to expose - see https://github.com/HarvsG/ha-glinet-integration#todo
+- [ ] Expose said endpoints (ongoing — see the table above and shauneccles/gli4py#14)
 - [x] Package correctly
 - [x] Test that dev enviroment is re-producable
 - [x] Publish on pip
-- [ ] Static typing
+- [x] Static typing
