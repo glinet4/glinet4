@@ -20,13 +20,16 @@ from ._transport import GLinetTransport
 from ._types import (
     Client,
     ClientsStatus,
+    DiskInfo,
     EthernetPortStatus,
     NetworkInterfaceStatus,
     RouterInfo,
     RouterStatus,
     TailscaleConfig,
     TailscaleStatus,
+    TimezoneConfig,
     TrafficSpeed,
+    UsbInfoEntry,
     WanCableState,
     WanInterfaceInfo,
     WanStatus,
@@ -130,6 +133,35 @@ class GLinet:
     async def router_get_load(self) -> Any:
         """Retrieve router load information."""
         return await self._transport.request(self._payload("call", ["system", "get_load"]))
+
+    async def router_unixtime(self) -> int:
+        """Return the router's current unix time."""
+        response = await self._transport.request(
+            self._payload("call", ["system", "get_unixtime", {}])
+        )
+        time: int = response.get("time", 0)
+        return time
+
+    async def router_disk_info(self) -> DiskInfo:
+        """Return disk usage for the root and tmp mounts."""
+        result: DiskInfo = await self._transport.request(
+            self._payload("call", ["system", "disk_info", {}])
+        )
+        return result
+
+    async def router_usb_info(self) -> list[UsbInfoEntry]:
+        """Return details of the router's USB ports."""
+        result: list[UsbInfoEntry] = await self._transport.request(
+            self._payload("call", ["system", "get_usb_info", {}])
+        )
+        return result
+
+    async def router_timezone_config(self) -> TimezoneConfig:
+        """Return the router's timezone configuration."""
+        result: TimezoneConfig = await self._transport.request(
+            self._payload("call", ["system", "get_timezone_config", {}])
+        )
+        return result
 
     async def router_mac(self) -> Any:
         """Retrieve the router's MAC address."""

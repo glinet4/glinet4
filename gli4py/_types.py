@@ -72,6 +72,39 @@ class WireguardClientStatus(TypedDict, total=False):
     tx_bytes: int
 
 
+class DiskUsage(TypedDict, total=False):
+    """Usage for one mount inside ``system disk_info`` (bytes)."""
+
+    free: int
+    total: int
+    used: int
+
+
+class DiskInfo(TypedDict, total=False):
+    """``system disk_info``."""
+
+    root: DiskUsage
+    tmp: DiskUsage
+
+
+class UsbInfoEntry(TypedDict, total=False):
+    """An entry from ``system get_usb_info``."""
+
+    label: str
+    value: str
+
+
+class TimezoneConfig(TypedDict, total=False):
+    """``system get_timezone_config``."""
+
+    autotimezone_enabled: bool
+    localtime: int
+    timestamp: int
+    timezone: str
+    tzoffset: str
+    zonename: str
+
+
 class TrafficSpeed(TypedDict, total=False):
     """``clients get_speed`` / ``clients get_wan_speed`` — bytes per second."""
 

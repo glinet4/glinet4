@@ -182,6 +182,38 @@ async def test_ping() -> None:
     assert not response
 
 
+async def test_router_unixtime() -> None:
+    """Test retrieving the router unix time."""
+    unixtime = await router.router_unixtime()
+    print(unixtime)
+    assert unixtime > 1700000000
+
+
+async def test_router_disk_info() -> None:
+    """Test retrieving disk usage."""
+    info = await router.router_disk_info()
+    print(info)
+    assert info["root"]["total"] > 0
+    assert info["tmp"]["total"] > 0
+
+
+async def test_router_usb_info() -> None:
+    """Test retrieving USB port details."""
+    info = await router.router_usb_info()
+    print(info)
+    assert isinstance(info, list)
+    for entry in info:
+        assert "value" in entry
+
+
+async def test_router_timezone_config() -> None:
+    """Test retrieving the timezone configuration."""
+    config = await router.router_timezone_config()
+    print(config)
+    assert "zonename" in config
+    assert config["timestamp"] > 1700000000
+
+
 async def test_clients_speed() -> None:
     """Test retrieving aggregate client rx/tx rates."""
     speed = await router.clients_speed()

@@ -304,6 +304,53 @@ async def test_wan_speed_calls_route_and_returns_rates(glinet):
     )
 
 
+async def test_router_unixtime_extracts_time(glinet):
+    glinet._transport.request.return_value = {"time": 1782705193}
+    assert await glinet.router_unixtime() == 1782705193
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call", ["system", "get_unixtime", {}], "SID"
+    )
+
+
+async def test_router_disk_info_returns_mounts(glinet):
+    glinet._transport.request.return_value = {
+        "root": {"free": 7237193728, "total": 7697334272, "used": 460140544},
+        "tmp": {"free": 510251008, "total": 518713344, "used": 8462336},
+    }
+    info = await glinet.router_disk_info()
+    assert info["root"]["total"] == 7697334272
+    assert info["tmp"]["used"] == 8462336
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call", ["system", "disk_info", {}], "SID"
+    )
+
+
+async def test_router_usb_info_returns_entries(glinet):
+    glinet._transport.request.return_value = [{"label": "USB Port", "value": "usb2.0"}]
+    info = await glinet.router_usb_info()
+    assert info == [{"label": "USB Port", "value": "usb2.0"}]
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call", ["system", "get_usb_info", {}], "SID"
+    )
+
+
+async def test_router_timezone_config_returns_zone(glinet):
+    glinet._transport.request.return_value = {
+        "autotimezone_enabled": True,
+        "localtime": 1782741193,
+        "timestamp": 1782705193,
+        "timezone": "ChST-10",
+        "tzoffset": "+1000",
+        "zonename": "Pacific/Guam",
+    }
+    config = await glinet.router_timezone_config()
+    assert config["zonename"] == "Pacific/Guam"
+    assert config["autotimezone_enabled"] is True
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call", ["system", "get_timezone_config", {}], "SID"
+    )
+
+
 async def test_clients_status_calls_route_and_returns_totals(glinet):
     glinet._transport.request.return_value = {
         "auto_remove_offline": False,
