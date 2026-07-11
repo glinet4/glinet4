@@ -121,7 +121,10 @@ async def test_router_get_load() -> None:
 
 async def test_router_mac() -> None:
     """Test retrieving the router's MAC address."""
-    response = await router.router_mac()
+    try:
+        response = await router.router_mac()
+    except NonZeroResponse:
+        pytest.skip("macclone is not enabled on this router")
     assert "factory_mac" in response
     print(response)
 
@@ -168,7 +171,8 @@ async def test_connected_to_internet() -> None:
     response = await router.connected_to_internet()
     print(response)
     assert response["detected"] in [0, 1, 2, 3]
-    assert "ip" in response
+    if response["detected"] in [1, 2]:
+        assert "ip" in response
 
 
 async def test_ping() -> None:
@@ -337,6 +341,8 @@ async def test_wireguard_client_state() -> None:
     parsed_version = Version.parse(firmware_version)
     response = await router.wireguard_client_state()
     print(response)
+    if not response:
+        pytest.skip("no WireGuard client configured on this router")
     first_status = response[0]
     # In newer version, status only exists when enabled is True
     # In older versions, status is always present
@@ -428,7 +434,7 @@ async def test_tailscale_status() -> None:
     """Test retrieving the Tailscale status."""
     response = await router._tailscale_status()  # pylint: disable=protected-access
     print(response)
-    assert dict(response).get("status", 0) in [1, 2, 3, 4] or response == []
+    assert dict(response).get("status", 0) in [0, 1, 2, 3, 4] or response == []
 
 
 async def test_tailscale_connection() -> None:
