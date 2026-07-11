@@ -298,6 +298,45 @@ async def test_tailscale_connection_state_handles_status_missing(glinet):
     assert await glinet.tailscale_connection_state() == TailscaleConnection.DISCONNECTED
 
 
+async def test_client_set_blocked_true_adds_to_black_list(glinet):
+    glinet._transport.request.return_value = []
+    await glinet.client_set_blocked("AA:BB:CC:DD:EE:FF", True)
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call",
+        [
+            "black_white_list",
+            "set_single_mac",
+            {"mode": "black", "operate": "add", "mac": "AA:BB:CC:DD:EE:FF"},
+        ],
+        "SID",
+    )
+
+
+async def test_client_set_blocked_false_removes_from_black_list(glinet):
+    glinet._transport.request.return_value = []
+    await glinet.client_set_blocked("AA:BB:CC:DD:EE:FF", False)
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call",
+        [
+            "black_white_list",
+            "set_single_mac",
+            {"mode": "black", "operate": "del", "mac": "AA:BB:CC:DD:EE:FF"},
+        ],
+        "SID",
+    )
+
+
+async def test_blocked_client_macs_filters_blocked(glinet):
+    glinet._transport.request.return_value = {
+        "clients": [
+            {"mac": "AA", "blocked": True, "online": True},
+            {"mac": "BB", "blocked": False, "online": True},
+            {"mac": "CC", "blocked": True, "online": False},
+        ]
+    }
+    assert await glinet.blocked_client_macs() == {"AA", "CC"}
+
+
 async def test_adguard_config_returns_flags(glinet):
     glinet._transport.request.return_value = {"enabled": True, "dns_enabled": True}
     config = await glinet.adguard_config()

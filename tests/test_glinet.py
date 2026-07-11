@@ -203,6 +203,29 @@ async def test_wifi_mlo_config() -> None:
     assert isinstance(config, dict)
 
 
+async def test_client_block_unblock() -> None:
+    """Block then unblock a client, verifying the blocked flag round-trips."""
+    assert PERFORM_DISTRUPTIVE_TESTS, (
+        "Disruptive tests are disabled, set PERFORM_DISTRUPTIVE_TESTS to True to run this test."
+    )
+    clients = await router.list_all_clients()
+    target = next(
+        (c for c in clients["clients"] if c.get("online") and not c.get("blocked")),
+        None,
+    )
+    if target is None:
+        pytest.skip("no unblocked online client to test against")
+    mac = target["mac"]
+    try:
+        await router.client_set_blocked(mac, True)
+        await asyncio.sleep(5)
+        assert mac in await router.blocked_client_macs()
+    finally:
+        await router.client_set_blocked(mac, False)
+        await asyncio.sleep(5)
+        assert mac not in await router.blocked_client_macs()
+
+
 async def test_adguard_config() -> None:
     """Test retrieving the AdGuard Home config."""
     config = await router.adguard_config()

@@ -346,6 +346,34 @@ class GLinet:
         )
         return result
 
+    async def client_set_blocked(self, mac: str, blocked: bool) -> Any:
+        """Block or unblock a client's network access by MAC.
+
+        Adds (``blocked=True``) or removes (``blocked=False``) the MAC from the
+        router's black list and restarts the filter service. The client's
+        ``blocked`` flag (see :meth:`connected_clients`) reflects the new state
+        on the next poll. Assumes the black/white list is in ``black`` mode.
+        """
+        return await self._transport.request(
+            self._payload(
+                "call",
+                [
+                    "black_white_list",
+                    "set_single_mac",
+                    {
+                        "mode": "black",
+                        "operate": "add" if blocked else "del",
+                        "mac": mac,
+                    },
+                ],
+            )
+        )
+
+    async def blocked_client_macs(self) -> set[str]:
+        """Return the MACs of all clients currently blocked."""
+        all_clients = await self.list_all_clients()
+        return {client["mac"] for client in all_clients["clients"] if client.get("blocked")}
+
     async def list_all_clients(self) -> dict[str, list[Client]]:
         """Get all clients known to the router."""
         result: dict[str, list[Client]] = await self._transport.request(
