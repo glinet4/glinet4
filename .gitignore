@@ -136,3 +136,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# local device captures may contain unsanitised WAN details; regenerate via glinet-profiler
+docs/devices/
