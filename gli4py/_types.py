@@ -105,6 +105,24 @@ class TimezoneConfig(TypedDict, total=False):
     zonename: str
 
 
+class FirmwareCheck(TypedDict, total=False):
+    """``upgrade check_firmware_online`` — ``new_*`` keys only when an update exists."""
+
+    current_compile_time: str
+    current_type: str
+    current_version: str
+    new_compile_time: str
+    new_type: str
+    new_version: str
+
+
+class UpgradeConfig(TypedDict, total=False):
+    """``upgrade get_config``."""
+
+    prompt: bool
+    upgrade_enable: bool
+
+
 class TrafficSpeed(TypedDict, total=False):
     """``clients get_speed`` / ``clients get_wan_speed`` — bytes per second."""
 

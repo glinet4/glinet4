@@ -182,6 +182,20 @@ async def test_ping() -> None:
     assert not response
 
 
+async def test_firmware_check_online() -> None:
+    """Test checking online for a firmware update."""
+    check = await router.firmware_check_online()
+    print(check)
+    assert "current_version" in check
+
+
+async def test_upgrade_config() -> None:
+    """Test retrieving the automatic-upgrade configuration."""
+    config = await router.upgrade_config()
+    print(config)
+    assert config["upgrade_enable"] in [True, False]
+
+
 async def test_router_unixtime() -> None:
     """Test retrieving the router unix time."""
     unixtime = await router.router_unixtime()

@@ -351,6 +351,38 @@ async def test_router_timezone_config_returns_zone(glinet):
     )
 
 
+async def test_firmware_check_online_no_update_available(glinet):
+    glinet._transport.request.return_value = {
+        "current_compile_time": "2026-05-20 10:00:00",
+        "current_type": "release",
+        "current_version": "4.9.0",
+    }
+    check = await glinet.firmware_check_online()
+    assert check["current_version"] == "4.9.0"
+    assert "new_version" not in check
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call", ["upgrade", "check_firmware_online", {}], "SID"
+    )
+
+
+async def test_firmware_check_online_update_available(glinet):
+    glinet._transport.request.return_value = {
+        "current_version": "4.9.0",
+        "new_version": "4.9.1",
+    }
+    check = await glinet.firmware_check_online()
+    assert check["new_version"] == "4.9.1"
+
+
+async def test_upgrade_config_returns_flags(glinet):
+    glinet._transport.request.return_value = {"prompt": False, "upgrade_enable": True}
+    config = await glinet.upgrade_config()
+    assert config["upgrade_enable"] is True
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call", ["upgrade", "get_config", {}], "SID"
+    )
+
+
 async def test_clients_status_calls_route_and_returns_totals(glinet):
     glinet._transport.request.return_value = {
         "auto_remove_offline": False,

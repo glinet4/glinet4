@@ -22,6 +22,7 @@ from ._types import (
     ClientsStatus,
     DiskInfo,
     EthernetPortStatus,
+    FirmwareCheck,
     NetworkInterfaceStatus,
     RouterInfo,
     RouterStatus,
@@ -29,6 +30,7 @@ from ._types import (
     TailscaleStatus,
     TimezoneConfig,
     TrafficSpeed,
+    UpgradeConfig,
     UsbInfoEntry,
     WanCableState,
     WanInterfaceInfo,
@@ -172,6 +174,20 @@ class GLinet:
         return await self._transport.request(
             self._payload("call", ["system", "reboot", {"delay": delay}])
         )
+
+    async def firmware_check_online(self) -> FirmwareCheck:
+        """Check online for a firmware update; ``new_*`` keys appear when one exists."""
+        result: FirmwareCheck = await self._transport.request(
+            self._payload("call", ["upgrade", "check_firmware_online", {}])
+        )
+        return result
+
+    async def upgrade_config(self) -> UpgradeConfig:
+        """Return the automatic-upgrade configuration."""
+        result: UpgradeConfig = await self._transport.request(
+            self._payload("call", ["upgrade", "get_config", {}])
+        )
+        return result
 
     async def ping(self, address: str) -> bool:
         """Ping an address from the router; True if reachable."""
