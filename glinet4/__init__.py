@@ -1,4 +1,4 @@
-"""gli4py - A Python library for GL.iNet routers"""
+"""glinet4 - A Python library for GL.iNet routers"""
 
 from ._types import (
     AdguardConfig,

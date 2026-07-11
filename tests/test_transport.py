@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from gli4py._transport import GLinetTransport
-from gli4py.error_handling import APIClientError
+from glinet4._transport import GLinetTransport
+from glinet4.error_handling import APIClientError
 
 
 def test_build_sid_payload_shape():

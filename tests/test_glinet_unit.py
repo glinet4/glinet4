@@ -6,9 +6,9 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from semver import Version
 
-from gli4py._transport import GLinetTransport
-from gli4py.enums import TailscaleConnection
-from gli4py.glinet import GLinet
+from glinet4._transport import GLinetTransport
+from glinet4.enums import TailscaleConnection
+from glinet4.glinet import GLinet
 
 
 @pytest.fixture
@@ -151,7 +151,7 @@ async def test_tailscale_start_connecting_then_connected(glinet, monkeypatch):
     async def _no_sleep(*_args, **_kwargs):
         return None
 
-    monkeypatch.setattr("gli4py.glinet.asyncio.sleep", _no_sleep)
+    monkeypatch.setattr("glinet4.glinet.asyncio.sleep", _no_sleep)
     glinet._transport.request.side_effect = [
         {"status": 4},  # connecting
         {"status": 3},  # connected after the (patched) 3s wait

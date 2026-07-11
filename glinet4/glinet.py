@@ -1,7 +1,7 @@
 """Asynchronous client for the GL.iNet router API.
 
 ``GLinet`` is the API/protocol layer: thin methods that build JSON-RPC params,
-delegate I/O to a :class:`gli4py._transport.GLinetTransport`, and shape the
+delegate I/O to a :class:`glinet4._transport.GLinetTransport`, and shape the
 responses. It owns protocol knowledge (firmware-version VPN routing) and
 higher-level orchestration (client filtering, wifi reshaping, the tailscale
 connection state machines) but performs no I/O itself.
@@ -14,7 +14,7 @@ import pydantic
 from semver import Version
 from uplink import AiohttpClient
 
-from gli4py.enums import TailscaleConnection
+from glinet4.enums import TailscaleConnection
 
 from ._transport import GLinetTransport
 from ._types import (

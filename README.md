@@ -1,14 +1,13 @@
-# gli4py
-A aysnc python 3 API wrapper for GL-inet routers with version 4 firmware. [WIP]
+# glinet4
 
-[GL-inet](https://www.gl-inet.com/) routers are built on [OpenWRT](https://openwrt.org/). They are highly customizeable but have an attractive user interface.
+An async Python 3 API wrapper for [GL.iNet](https://www.gl-inet.com/) routers running version 4.x firmware.
 
-As part of their modiification of the UI they used to provide a [documented locally accessible API](https://web.archive.org/web/20240121142533/https://dev.gl-inet.com/router-4.x-api/).
+GL.iNet routers are built on [OpenWRT](https://openwrt.org/) and expose a local [JSON-RPC API](https://web.archive.org/web/20240121142533/https://dev.gl-inet.com/router-4.x-api/). `glinet4` wraps that API for easy integration into other services such as [Home Assistant](https://www.home-assistant.io/).
 
-I thought it would be handy to develop a python 3 wrapper for the API for easy intergation into other services such as [HomeAssistant](https://www.home-assistant.io/)
+> `glinet4` began as a fork of [HarvsG/gli4py](https://github.com/HarvsG/gli4py) (GPL-3.0) and has since grown a much larger API surface. See [NOTICE](NOTICE) for attribution.
 
 ## Installation
-`pip install gli4py`
+`pip install glinet4`
 
 ## Dev setup
 1. Clone the repo
@@ -22,7 +21,7 @@ I thought it would be handy to develop a python 3 wrapper for the API for easy i
 ## Dev setup alongside HA & the Custom component
 1. Clone the repo into the vscode `/workspaces/` dir
 2. The inside the `ha-env` terminal run `(ha-venv) vscode ➜ /workspaces/core (branch-name) $ pip install -e /workspaces/gli4py `
-3. Ensure the custom component has `"python.analysis.extraPaths": ["/workspaces/gli4py/"]` in `.vscode/settings.json`
+3. Ensure the custom component has `"python.analysis.extraPaths": ["/workspaces/glinet4/"]` in `.vscode/settings.json`
 4. deactivate the `ha-env` with `deactivate`
 5. Do steps 3 onwards above
 
@@ -42,13 +41,13 @@ Session: `login`, `router_reachable`. All other methods require login first.
 | WireGuard | `wireguard_client_list`, `wireguard_client_state`, `wireguard_client_start`, `wireguard_client_stop` |
 | Tailscale | `tailscale_configured`, `tailscale_connection_state`, `tailscale_start`, `tailscale_stop`, `tailscale_auth_url`, `tailscale_exit_node_list` |
 
-Responses are typed with `TypedDict`s (see `gli4py/_types.py`); the package ships `py.typed`.
+Responses are typed with `TypedDict`s (see `glinet4/_types.py`); the package ships `py.typed`.
 The catalogue of routes still to wrap comes from the sanitised device captures in
 [glinet-registry](https://github.com/shauneccles/glinet-registry).
 
 Todo list:
 - [x] Decide on useful endpoints to expose - see https://github.com/HarvsG/ha-glinet-integration#todo
-- [ ] Expose said endpoints (ongoing — see the table above and shauneccles/gli4py#14)
+- [ ] Expose said endpoints (ongoing — see the table above and glinet4/glinet4 issues)
 - [x] Package correctly
 - [x] Test that dev enviroment is re-producable
 - [x] Publish on pip

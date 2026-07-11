@@ -3,7 +3,7 @@
 This module owns everything that touches the network: the uplink client, the
 JSON-RPC request methods, session-id (``sid``) state, and the challenge-response
 login flow with its CPU-bound password hashing. It is the only place in the
-package that performs I/O — the API layer (``gli4py.glinet.GLinet``) composes a
+package that performs I/O — the API layer (``glinet4.glinet.GLinet``) composes a
 ``GLinetTransport`` and never imports uplink or talks to the client directly.
 """
 

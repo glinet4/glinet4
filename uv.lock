@@ -417,8 +417,8 @@ wheels = [
 ]
 
 [[package]]
-name = "gli4py"
-version = "0.0.17b3"
+name = "glinet4"
+version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },

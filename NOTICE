@@ -1,0 +1,10 @@
+glinet4
+Copyright (c) 2026 glinet4 contributors
+
+This project is a fork of gli4py (https://github.com/HarvsG/gli4py),
+Copyright (c) HarvsG, licensed under the GNU General Public License v3.0.
+
+glinet4 remains licensed under GPL-3.0-or-later. It substantially extends the
+original with additional API routes, typed responses, an extracted transport
+layer, and expanded tests. The original project's contributions are gratefully
+acknowledged.

@@ -26,6 +26,6 @@ jobs:
       - name: Ruff format check
         run: uv run ruff format --check .
       - name: Mypy (strict)
-        run: uv run mypy gli4py
+        run: uv run mypy glinet4
       - name: Run tests
         run: uv run pytest -v
