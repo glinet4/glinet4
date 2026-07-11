@@ -203,6 +203,37 @@ async def test_wifi_mlo_config() -> None:
     assert isinstance(config, dict)
 
 
+async def test_firewall_port_forward_list() -> None:
+    """Test retrieving port-forward rules."""
+    rules = await router.firewall_port_forward_list()
+    print(rules)
+    assert isinstance(rules, list)
+    for rule in rules:
+        assert "enabled" in rule
+
+
+async def test_firewall_dmz() -> None:
+    """Test retrieving the DMZ configuration."""
+    dmz = await router.firewall_dmz()
+    print(dmz)
+    assert dmz["enabled"] in [True, False]
+
+
+async def test_firewall_wan_access() -> None:
+    """Test retrieving WAN service exposure flags."""
+    access = await router.firewall_wan_access()
+    print(access)
+    assert access["enable_ssh"] in [True, False]
+    assert access["enable_https"] in [True, False]
+
+
+async def test_firewall_rule_list() -> None:
+    """Test retrieving custom firewall rules."""
+    rules = await router.firewall_rule_list()
+    print(rules)
+    assert isinstance(rules, list)
+
+
 async def test_firmware_check_online() -> None:
     """Test checking online for a firmware update."""
     check = await router.firmware_check_online()

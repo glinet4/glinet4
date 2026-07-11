@@ -138,6 +138,37 @@ class ClientsStatus(TypedDict, total=False):
     wireless_total: int
 
 
+class PortForwardRule(TypedDict, total=False):
+    """A rule from ``firewall get_port_forward_list``."""
+
+    dest: str
+    dest_ip: str
+    dest_port: str
+    enabled: bool
+    id: str
+    name: str
+    proto: str
+    src: str
+    src_dport: str
+
+
+class DmzConfig(TypedDict, total=False):
+    """``firewall get_dmz``."""
+
+    enabled: bool
+    dmz_ip: str
+
+
+class WanAccessConfig(TypedDict, total=False):
+    """``firewall get_wan_access``."""
+
+    enable_https: bool
+    enable_ping: bool
+    enable_ssh: bool
+    enable_whitelist: bool
+    whitelist: list[str]
+
+
 class WifiRadioStatus(TypedDict, total=False):
     """A radio entry from ``wifi get_status``."""
 

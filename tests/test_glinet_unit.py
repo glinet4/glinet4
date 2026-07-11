@@ -215,6 +215,67 @@ async def test_wifi_mlo_config_extracts_res(glinet):
     )
 
 
+async def test_firewall_port_forward_list_extracts_rules(glinet):
+    glinet._transport.request.return_value = {
+        "res": [
+            {
+                "dest": "lan",
+                "dest_ip": "192.0.2.20",
+                "dest_port": "32400",
+                "enabled": True,
+                "id": "cfg013837",
+                "name": "plex",
+                "proto": "tcpudp",
+                "src": "wan",
+                "src_dport": "32400",
+            }
+        ]
+    }
+    rules = await glinet.firewall_port_forward_list()
+    assert rules == glinet._transport.request.return_value["res"]
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call", ["firewall", "get_port_forward_list", {}], "SID"
+    )
+
+
+async def test_firewall_port_forward_list_empty_when_key_missing(glinet):
+    glinet._transport.request.return_value = {}
+    assert await glinet.firewall_port_forward_list() == []
+
+
+async def test_firewall_dmz_returns_config(glinet):
+    glinet._transport.request.return_value = {"enabled": False}
+    dmz = await glinet.firewall_dmz()
+    assert dmz["enabled"] is False
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call", ["firewall", "get_dmz", {}], "SID"
+    )
+
+
+async def test_firewall_wan_access_returns_flags(glinet):
+    glinet._transport.request.return_value = {
+        "enable_https": False,
+        "enable_ping": False,
+        "enable_ssh": False,
+        "enable_whitelist": False,
+        "whitelist": [],
+    }
+    access = await glinet.firewall_wan_access()
+    assert access["enable_ssh"] is False
+    assert access["whitelist"] == []
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call", ["firewall", "get_wan_access", {}], "SID"
+    )
+
+
+async def test_firewall_rule_list_extracts_rules(glinet):
+    glinet._transport.request.return_value = {"res": []}
+    assert await glinet.firewall_rule_list() == []
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call", ["firewall", "get_rule_list", {}], "SID"
+    )
+
+
 async def test_ping_fw49_replies_returns_true(glinet):
     glinet._transport.request_long_timeout.return_value = {
         "ping_result": (
