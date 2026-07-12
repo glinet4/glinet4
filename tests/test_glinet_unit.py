@@ -1,7 +1,7 @@
 """Unit tests for GLinet's API/orchestration layer against a mocked transport."""
 # pylint: disable=missing-function-docstring,protected-access,redefined-outer-name
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 from semver import Version
@@ -11,15 +11,7 @@ from glinet4.enums import TailscaleConnection
 from glinet4.error_handling import RetryExhausted, UnexpectedResponse
 from glinet4.glinet import GLinet
 
-
-@pytest.fixture
-def glinet():
-    g = GLinet(base_url="http://192.168.8.1/rpc")
-    g._transport = MagicMock()
-    g._transport.request = AsyncMock()
-    g._transport.request_long_timeout = AsyncMock()
-    g._transport.sid = "SID"
-    return g
+# The shared transport-mocked `glinet` fixture lives in conftest.py.
 
 
 def test_construction_preserves_public_surface():
