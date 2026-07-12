@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
 import pytest
+from aiohttp.client_reqrep import ConnectionKey
 from passlib.hash import md5_crypt
 
 from glinet4._transport import GLinetTransport
@@ -422,16 +423,21 @@ def _sent_timeout(session: MagicMock) -> aiohttp.ClientTimeout:
     return timeout
 
 
-async def test_default_timeouts_are_2s_request_and_5s_long():
+async def test_default_timeouts_are_10s_request_and_60s_long():
+    # Evidence-based (live Flint 2 run): ordinary RPCs return in well under a
+    # second, but diagnostics like `diag ping` block router-side for
+    # multiple seconds by design, and firmware-check reaches GL.iNet's own
+    # servers -- 2s/5s were never a real effective timeout under the old
+    # uplink stack (its @timeout decorators were silently ignored).
     session = _wire_session(
         FakeAiohttpResponse(200, {"result": {}}), FakeAiohttpResponse(200, {"result": {}})
     )
     transport = GLinetTransport(session=session, base_url="http://192.168.8.1/rpc")
     payload = GLinetTransport.build_sid_payload("call", ["system", "get_info"], "SID")
     await transport.request(payload)
-    assert _sent_timeout(session).total == 2
+    assert _sent_timeout(session).total == 10
     await transport.request_long_timeout(payload)
-    assert _sent_timeout(session).total == 5
+    assert _sent_timeout(session).total == 60
 
 
 async def test_per_instance_timeouts_carry_configured_values():
@@ -463,6 +469,59 @@ async def test_request_releases_response_even_when_raise_for_status_raises():
             GLinetTransport.build_sid_payload("call", ["system", "get_info"], "SID")
         )
     assert error_response.released is True
+
+
+async def test_request_timeout_raises_unsuccessful_request_with_seconds_in_message():
+    # Defect 1: a bare TimeoutError (raised by aiohttp when a request exceeds
+    # its ClientTimeout) must not escape the APIClientError hierarchy. The
+    # router's `diag ping` RPC blocks router-side for multiple seconds by
+    # design, which is exactly the scenario that trips this in production.
+    session = MagicMock(spec=aiohttp.ClientSession)
+    session.request = AsyncMock(side_effect=TimeoutError())
+    transport = GLinetTransport(session=session, base_url="http://192.168.8.1/rpc")
+    with pytest.raises(UnsuccessfulRequest) as exc_info:
+        await transport.request(
+            GLinetTransport.build_sid_payload("call", ["diag", "ping", {"addr": "0.0.0.1"}], "SID")
+        )
+    assert isinstance(exc_info.value.__cause__, TimeoutError)
+    assert "10" in str(exc_info.value)  # configured request_timeout seconds
+
+
+async def test_long_timeout_request_timeout_message_reports_long_timeout_seconds():
+    session = MagicMock(spec=aiohttp.ClientSession)
+    session.request = AsyncMock(side_effect=TimeoutError())
+    transport = GLinetTransport(session=session, base_url="http://192.168.8.1/rpc")
+    with pytest.raises(UnsuccessfulRequest) as exc_info:
+        await transport.request_long_timeout(
+            GLinetTransport.build_sid_payload("call", ["diag", "ping", {"addr": "0.0.0.1"}], "SID")
+        )
+    assert "60" in str(exc_info.value)  # configured long_timeout seconds
+
+
+async def test_request_client_error_raises_unsuccessful_request_with_cause_preserved():
+    # Defect 1: aiohttp.ClientError subclasses (DNS failure, connection
+    # refused, etc.) must also be wrapped rather than propagating raw.
+    os_error = ConnectionRefusedError("Connection refused")
+    connection_key = ConnectionKey(
+        host="192.168.8.1",
+        port=80,
+        is_ssl=False,
+        ssl=None,
+        proxy=None,
+        proxy_auth=None,
+        proxy_headers_hash=None,
+    )
+    client_error = aiohttp.ClientConnectorError(connection_key, os_error)
+
+    session = MagicMock(spec=aiohttp.ClientSession)
+    session.request = AsyncMock(side_effect=client_error)
+    transport = GLinetTransport(session=session, base_url="http://192.168.8.1/rpc")
+    with pytest.raises(UnsuccessfulRequest) as exc_info:
+        await transport.request(
+            GLinetTransport.build_sid_payload("call", ["system", "get_info"], "SID")
+        )
+    assert exc_info.value.__cause__ is client_error
+    assert "ClientConnectorError" in str(exc_info.value)
 
 
 async def test_owned_session_materializes_lazily_and_close_resets_it():

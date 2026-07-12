@@ -452,8 +452,15 @@ class GLinet:
         return bool(result != [])
 
     async def connected_to_internet(self) -> Any:
-        """Return the upstream/edge-router connectivity status."""
-        return await self._transport.request(self._payload("call", ["edgerouter", "get_status"]))
+        """Return the upstream/edge-router connectivity status.
+
+        Routed through the long timeout: the router-side connectivity probe
+        can block for multiple seconds, the same class of delay
+        :meth:`ping`'s ``diag ping`` RPC exhibits.
+        """
+        return await self._transport.request_long_timeout(
+            self._payload("call", ["edgerouter", "get_status"])
+        )
 
     async def wan_cable_state(self) -> WanCableState:
         """Return WAN cable presence and macclone flags."""

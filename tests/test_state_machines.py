@@ -227,13 +227,17 @@ async def test_router_mac_returns_factory_mac(glinet):
 
 
 async def test_connected_to_internet_reports_detected_status(glinet):
-    glinet._transport.request.return_value = {"detected": 1, "ip": "203.0.113.5"}
+    # Defect 2: connected_to_internet must go through request_long_timeout,
+    # not request -- the router-side connectivity probe can block for
+    # multiple seconds, the same class of delay diag ping exhibits.
+    glinet._transport.request_long_timeout.return_value = {"detected": 1, "ip": "203.0.113.5"}
     status = await glinet.connected_to_internet()
     assert status["detected"] == 1
     assert status["ip"] == "203.0.113.5"
     glinet._transport.build_sid_payload.assert_called_once_with(
         "call", ["edgerouter", "get_status"], "SID"
     )
+    glinet._transport.request.assert_not_called()
 
 
 async def test_tailscale_get_config_returns_config(glinet):

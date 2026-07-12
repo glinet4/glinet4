@@ -21,6 +21,7 @@ from .error_handling import (
     APIClientError,
     AuthenticationError,
     UnexpectedResponse,
+    UnsuccessfulRequest,
     raise_for_status,
 )
 
@@ -42,10 +43,16 @@ class GLinetTransport:
 
     ``request_timeout`` and ``long_timeout`` are total-request timeouts in
     seconds for :meth:`request` and :meth:`request_long_timeout` respectively.
-    ``ssl`` is handed through to every request: pass ``False`` (or a custom
-    :class:`ssl.SSLContext`) to talk HTTPS to a router with a self-signed
-    certificate; the default ``True`` keeps standard certificate checking and
-    is ignored entirely for plain ``http://`` URLs.
+    Defaults (10s / 60s) are evidence-based from a live Flint 2 run: ordinary
+    RPCs return in well under a second, but a handful of diagnostics block
+    router-side for multiple seconds by design (e.g. the ``diag ping`` RPC
+    behind :meth:`~glinet4.glinet.GLinet.ping` and
+    :meth:`~glinet4.glinet.GLinet.connected_to_internet` waits out a ping
+    timeout server-side) or reach out to GL.iNet's own servers (the
+    firmware-update check). ``ssl`` is handed through to every request: pass
+    ``False`` (or a custom :class:`ssl.SSLContext`) to talk HTTPS to a router
+    with a self-signed certificate; the default ``True`` keeps standard
+    certificate checking and is ignored entirely for plain ``http://`` URLs.
     """
 
     def __init__(  # pylint: disable=too-many-arguments,too-many-positional-arguments
@@ -53,8 +60,8 @@ class GLinetTransport:
         base_url: str,
         session: aiohttp.ClientSession | None = None,
         sid: str | None = None,
-        request_timeout: float = 2,
-        long_timeout: float = 5,
+        request_timeout: float = 10,
+        long_timeout: float = 60,
         ssl: bool | SSLContext = True,
     ) -> None:
         self.base_url: str = base_url
@@ -141,22 +148,45 @@ class GLinetTransport:
         connection to the pool; the ``finally: release()`` covers the paths
         where it raises before the body was fully read, so no request path
         can leak a connection.
+
+        Every raising path stays inside the :class:`APIClientError` hierarchy:
+        a request that exceeds ``client_timeout`` raises a bare
+        :class:`TimeoutError` (``asyncio.TimeoutError`` is the same class from
+        Python 3.11 on), and connection-level failures (DNS failure,
+        connection refused, ...) raise an :class:`aiohttp.ClientError`
+        subclass -- both are caught here and re-raised as
+        :class:`~glinet4.error_handling.UnsuccessfulRequest` with the
+        original exception preserved as ``__cause__``.
         """
         session = self._get_session()
-        response = await session.request(
-            "POST", self.base_url, json=data, timeout=client_timeout, ssl=self._ssl
-        )
+        response: aiohttp.ClientResponse | None = None
         try:
+            response = await session.request(
+                "POST", self.base_url, json=data, timeout=client_timeout, ssl=self._ssl
+            )
             return await raise_for_status(response)
+        except TimeoutError as exc:
+            raise UnsuccessfulRequest(
+                f"Request to {self.base_url} timed out after {client_timeout.total}s"
+            ) from exc
+        except aiohttp.ClientError as exc:
+            raise UnsuccessfulRequest(
+                f"Request to {self.base_url} failed: {type(exc).__name__}: {exc}"
+            ) from exc
         finally:
-            response.release()
+            if response is not None:
+                response.release()
 
     async def request(self, data: dict[str, Any]) -> Any:
-        """Make a JSON-RPC request to the router (default 2s total timeout)."""
+        """Make a JSON-RPC request to the router (default 10s total timeout)."""
         return await self._post(data, self._request_timeout)
 
     async def request_long_timeout(self, data: dict[str, Any]) -> Any:
-        """Make a JSON-RPC request to the router (default 5s total timeout)."""
+        """Make a JSON-RPC request to the router (default 60s total timeout).
+
+        For RPCs the router answers slowly by design, e.g. ``diag ping``
+        (see :meth:`~glinet4.glinet.GLinet.ping`).
+        """
         return await self._post(data, self._long_timeout)
 
     async def _challenge(self, username: str) -> Any:
