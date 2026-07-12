@@ -89,6 +89,23 @@ def _parse_firmware_version(raw: str) -> Version | None:
         return None
 
 
+def _tailscale_status_label(status: int) -> str:
+    """Resolve a raw tailscale status int to its enum name, if known.
+
+    Used when building exception messages from a freshly re-fetched status
+    that has not been validated against :class:`TailscaleConnection` yet
+    (e.g. future firmware reporting a status outside the known values).
+    ``TailscaleConnection(status)`` raises a builtin ``ValueError`` for
+    unknown members, which must never escape from inside an
+    ``APIClientError`` message-construction path -- fall back to the raw
+    int instead of letting that happen.
+    """
+    try:
+        return TailscaleConnection(status).name
+    except ValueError:
+        return str(status)
+
+
 class GLinet:
     """A Python client for the GL.iNet API (API/protocol layer).
 
@@ -800,7 +817,7 @@ class GLinet:
             if status != 3:
                 raise RetryExhausted(
                     "Did not try to start tailscale as device reported 'Connecting' "
-                    f"and then 3 seconds later {TailscaleConnection(status).name}"
+                    f"and then 3 seconds later {_tailscale_status_label(status)}"
                 )
             return True
         if status in [1, 2]:

@@ -59,6 +59,26 @@ async def test_tailscale_start_unknown_status_raises_unexpected_response(glinet)
         await glinet.tailscale_start()
 
 
+async def test_tailscale_start_connecting_then_out_of_enum_status_raises_retry_exhausted(
+    glinet, monkeypatch
+):
+    # Regression test: the "connecting" retry branch re-fetches status and
+    # used to build the RetryExhausted message via TailscaleConnection(status)
+    # .name unconditionally. A future-firmware status outside the known enum
+    # (e.g. 99) made that raise a builtin ValueError instead, escaping the
+    # APIClientError hierarchy entirely. It must stay a RetryExhausted with
+    # the raw status in the message, not a builtin ValueError.
+    sleep = AsyncMock()
+    monkeypatch.setattr("glinet4.glinet.asyncio.sleep", sleep)
+    glinet._transport.request.side_effect = [
+        {"status": 4},  # connecting
+        {"status": 99},  # still not connected 3s later -> unknown/future status
+    ]
+    with pytest.raises(RetryExhausted, match="99"):
+        await glinet.tailscale_start()
+    sleep.assert_awaited_once_with(3)
+
+
 async def test_tailscale_start_sleeps_before_retrying_after_first_attempt(glinet, monkeypatch):
     # depth > 0 backoff path: still disabled after the *first* enable attempt,
     # so the loop sleeps 0.3s before recursing again. Every other start test
