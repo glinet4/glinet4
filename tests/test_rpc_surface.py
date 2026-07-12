@@ -1,5 +1,6 @@
-"""Static guard: every RPC (service, method) pair glinet4/glinet.py sends must
-be a known method on a real device, per the captured registry in
+"""Static guard: every RPC (service, method) pair glinet4 sends (from
+glinet4/glinet.py and the glinet4/_routes/ mixin modules) must be a known
+method on a real device, per the captured registry in
 tests/data/rpc_catalog.json.
 
 The catalog is a names-only extract of a live capture against an MT6000 on
@@ -25,10 +26,14 @@ import ast
 import json
 from pathlib import Path
 
-GLINET_SOURCE = Path(__file__).parent.parent / "glinet4" / "glinet.py"
+_GLINET_PACKAGE = Path(__file__).parent.parent / "glinet4"
+GLINET_SOURCES = [
+    _GLINET_PACKAGE / "glinet.py",
+    *sorted((_GLINET_PACKAGE / "_routes").glob("*.py")),
+]
 CATALOG_PATH = Path(__file__).parent / "data" / "rpc_catalog.json"
 
-# (service, method) pairs glinet4/glinet.py legitimately sends but that are
+# (service, method) pairs glinet4 legitimately sends but that are
 # absent from the mt6000 4.9.0 capture. Grouped by why the capture misses
 # them; when refreshing the catalog from a new capture, re-check whether any
 # of these have since appeared (see the allowlist-rot test below).
@@ -69,8 +74,8 @@ def _literal_strings(node: ast.expr) -> list[str]:
     """Return every literal string value an expression could evaluate to.
 
     Handles plain string constants and ``a if cond else b`` ternaries (used
-    by glinet.py's firmware-version VPN-client routing), which is enough to
-    resolve every payload literal glinet4/glinet.py currently sends.
+    by the firmware-version VPN-client routing in _routes/vpn.py), which is
+    enough to resolve every payload literal glinet4 currently sends.
     """
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return [node.value]
@@ -79,7 +84,7 @@ def _literal_strings(node: ast.expr) -> list[str]:
     return []
 
 
-def _extract_rpc_pairs(source: str) -> set[tuple[str, str]]:
+def _extract_rpc_pairs(source: str, origin: str = "glinet.py") -> set[tuple[str, str]]:
     """Statically extract every (service, method) pair sent via self._payload("call", [...])."""
     tree = ast.parse(source)
 
@@ -117,12 +122,20 @@ def _extract_rpc_pairs(source: str) -> set[tuple[str, str]]:
         module_node, method_node = args[1].elts[0], args[1].elts[1]
         modules, methods = resolve(module_node), resolve(method_node)
         resolve_hint = (
-            f"could not statically resolve a payload literal at glinet.py:{node.lineno} "
+            f"could not statically resolve a payload literal at {origin}:{node.lineno} "
             "-- extend _extract_rpc_pairs to handle it"
         )
         assert modules, resolve_hint
         assert methods, resolve_hint
         pairs.update((module, method) for module in modules for method in methods)
+    return pairs
+
+
+def _extract_sent_rpc_pairs() -> set[tuple[str, str]]:
+    """Union the extracted pairs across glinet.py and every _routes module."""
+    pairs: set[tuple[str, str]] = set()
+    for source_path in GLINET_SOURCES:
+        pairs |= _extract_rpc_pairs(source_path.read_text(encoding="utf-8"), source_path.name)
     return pairs
 
 
@@ -132,7 +145,7 @@ def _load_catalog_pairs() -> set[tuple[str, str]]:
 
 
 def test_every_sent_rpc_pair_is_known():
-    sent_pairs = _extract_rpc_pairs(GLINET_SOURCE.read_text(encoding="utf-8"))
+    sent_pairs = _extract_sent_rpc_pairs()
     catalog_pairs = _load_catalog_pairs()
     unknown = sorted(sent_pairs - catalog_pairs - KNOWN_UNCATALOGUED)
     assert not unknown, (
@@ -146,11 +159,11 @@ def test_every_sent_rpc_pair_is_known():
 
 def test_known_uncatalogued_allowlist_is_not_stale():
     """Every KNOWN_UNCATALOGUED entry must still be sent, and still be uncatalogued."""
-    sent_pairs = _extract_rpc_pairs(GLINET_SOURCE.read_text(encoding="utf-8"))
+    sent_pairs = _extract_sent_rpc_pairs()
     catalog_pairs = _load_catalog_pairs()
     stale_sent = sorted(pair for pair in KNOWN_UNCATALOGUED if pair not in sent_pairs)
     stale_catalog = sorted(pair for pair in KNOWN_UNCATALOGUED if pair in catalog_pairs)
-    assert not stale_sent, f"KNOWN_UNCATALOGUED pair(s) no longer sent by glinet.py: {stale_sent}"
+    assert not stale_sent, f"KNOWN_UNCATALOGUED pair(s) no longer sent by glinet4: {stale_sent}"
     assert not stale_catalog, (
         f"KNOWN_UNCATALOGUED pair(s) now present in the catalog, remove them: {stale_catalog}"
     )

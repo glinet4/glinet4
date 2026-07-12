@@ -14,9 +14,10 @@ import pytest
 from dotenv import load_dotenv
 from semver import Version
 
+from glinet4._routes.vpn import NEW_VPN_CLIENT_VERSION
 from glinet4.enums import TailscaleConnection
 from glinet4.error_handling import NonZeroResponse
-from glinet4.glinet import NEW_VPN_CLIENT_VERSION, GLinet
+from glinet4.glinet import GLinet
 
 load_dotenv()
 

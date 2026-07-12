@@ -198,7 +198,7 @@ async def test_tailscale_start_connecting_then_connected(glinet, monkeypatch):
     # Phase 2, Task 5: patch with an AsyncMock (not a bare no-op) so the retry-
     # sleep path's *execution* is actually asserted, not just tolerated.
     sleep = AsyncMock()
-    monkeypatch.setattr("glinet4.glinet.asyncio.sleep", sleep)
+    monkeypatch.setattr("glinet4._routes.tailscale.asyncio.sleep", sleep)
     glinet._transport.request.side_effect = [
         {"status": 4},  # connecting
         {"status": 3},  # connected after the (patched) 3s wait

@@ -34,7 +34,7 @@ async def test_tailscale_start_depth_limit_exhausted_raises_retry_exhausted(glin
 
 async def test_tailscale_start_connecting_then_failed_raises_retry_exhausted(glinet, monkeypatch):
     sleep = AsyncMock()
-    monkeypatch.setattr("glinet4.glinet.asyncio.sleep", sleep)
+    monkeypatch.setattr("glinet4._routes.tailscale.asyncio.sleep", sleep)
     glinet._transport.request.side_effect = [
         {"status": 4},  # connecting
         {"status": 2},  # still not connected 3s later -> AUTHORIZATION_REQUIRED
@@ -60,7 +60,7 @@ async def test_tailscale_start_connecting_then_out_of_enum_status_raises_retry_e
     # APIClientError hierarchy entirely. It must stay a RetryExhausted with
     # the raw status in the message, not a builtin ValueError.
     sleep = AsyncMock()
-    monkeypatch.setattr("glinet4.glinet.asyncio.sleep", sleep)
+    monkeypatch.setattr("glinet4._routes.tailscale.asyncio.sleep", sleep)
     glinet._transport.request.side_effect = [
         {"status": 4},  # connecting
         {"status": 99},  # still not connected 3s later -> unknown/future status
@@ -76,7 +76,7 @@ async def test_tailscale_start_sleeps_before_retrying_after_first_attempt(glinet
     # either connects on the first pass or fails outright, so this path (line
     # `if depth > 0: await asyncio.sleep(0.3)`) had no coverage at all.
     sleep = AsyncMock()
-    monkeypatch.setattr("glinet4.glinet.asyncio.sleep", sleep)
+    monkeypatch.setattr("glinet4._routes.tailscale.asyncio.sleep", sleep)
     glinet._transport.request.side_effect = [
         [],  # depth 0: still disabled
         {"wan_enabled": False},  # _tailscale_set_config -> get_config
@@ -103,7 +103,7 @@ async def test_tailscale_stop_depth_limit_exhausted_raises_retry_exhausted(gline
 
 async def test_tailscale_stop_sleeps_before_retrying_after_first_attempt(glinet, monkeypatch):
     sleep = AsyncMock()
-    monkeypatch.setattr("glinet4.glinet.asyncio.sleep", sleep)
+    monkeypatch.setattr("glinet4._routes.tailscale.asyncio.sleep", sleep)
     glinet._transport.request.side_effect = [
         {"status": 3},  # depth 0: still connected
         {"wan_enabled": True},  # _tailscale_set_config -> get_config

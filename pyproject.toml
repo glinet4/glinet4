@@ -87,6 +87,7 @@ disable = [
     "invalid-name",  # short/firmware-mirroring names (sid, hsh, alg) don't fit pylint's naming conventions
     "too-many-public-methods",  # GLinet mirrors the router's flat JSON-RPC method surface; splitting it fights the API's shape
     "too-many-instance-attributes",  # same rationale as too-many-public-methods
+    "too-many-ancestors",  # GLinet deliberately composes the eight _routes mixins (one per RPC group)
     "too-few-public-methods",  # small typed data containers don't need N public methods to justify existing
     "too-many-branches",  # login()'s hash-algorithm dispatch reads clearer as one branch ladder than split helpers
 ]
