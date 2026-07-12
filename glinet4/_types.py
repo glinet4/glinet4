@@ -40,8 +40,25 @@ class Client(TypedDict, total=False):
     online: bool
 
 
+class StaticClient(TypedDict, total=False):
+    """A static DHCP binding from ``lan get_static_bind_list``."""
+
+    mac: str
+    name: str
+    ip: str
+
+
+class RouterLoad(TypedDict, total=False):
+    """``system get_load`` — 1/5/15-minute load averages, memory in bytes."""
+
+    load_average: list[float]
+    memory_free: int
+    memory_buff_cache: int
+    memory_total: int
+
+
 class WifiIface(TypedDict, total=False):
-    """A reshaped wifi interface from :meth:`GLinet.wifi_ifaces_get`."""
+    """A reshaped wifi interface from :meth:`GLinet.wifi_ifaces`."""
 
     enabled: bool
     encryption: str

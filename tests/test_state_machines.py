@@ -25,16 +25,18 @@ from glinet4.error_handling import FeatureConflictError, RetryExhausted, Unexpec
 
 async def test_tailscale_start_depth_limit_exhausted_raises_retry_exhausted(glinet):
     # Call straight past the recursion-depth guard instead of driving 11 real
-    # recursions through side_effect: the guard is the first thing the method
-    # checks, so the transport should never even be asked.
+    # recursions through side_effect: the guard is the first thing the worker
+    # checks, so the transport should never even be asked. The public
+    # tailscale_start() takes no depth (Phase 4, Task 2), so this drives the
+    # internal recursive worker directly.
     with pytest.raises(RetryExhausted, match="10 times"):
-        await glinet.tailscale_start(depth=11)
+        await glinet._tailscale_start(depth=11)
     glinet._transport.request.assert_not_awaited()
 
 
 async def test_tailscale_start_connecting_then_failed_raises_retry_exhausted(glinet, monkeypatch):
     sleep = AsyncMock()
-    monkeypatch.setattr("glinet4.glinet.asyncio.sleep", sleep)
+    monkeypatch.setattr("glinet4._routes.tailscale.asyncio.sleep", sleep)
     glinet._transport.request.side_effect = [
         {"status": 4},  # connecting
         {"status": 2},  # still not connected 3s later -> AUTHORIZATION_REQUIRED
@@ -60,7 +62,7 @@ async def test_tailscale_start_connecting_then_out_of_enum_status_raises_retry_e
     # APIClientError hierarchy entirely. It must stay a RetryExhausted with
     # the raw status in the message, not a builtin ValueError.
     sleep = AsyncMock()
-    monkeypatch.setattr("glinet4.glinet.asyncio.sleep", sleep)
+    monkeypatch.setattr("glinet4._routes.tailscale.asyncio.sleep", sleep)
     glinet._transport.request.side_effect = [
         {"status": 4},  # connecting
         {"status": 99},  # still not connected 3s later -> unknown/future status
@@ -76,7 +78,7 @@ async def test_tailscale_start_sleeps_before_retrying_after_first_attempt(glinet
     # either connects on the first pass or fails outright, so this path (line
     # `if depth > 0: await asyncio.sleep(0.3)`) had no coverage at all.
     sleep = AsyncMock()
-    monkeypatch.setattr("glinet4.glinet.asyncio.sleep", sleep)
+    monkeypatch.setattr("glinet4._routes.tailscale.asyncio.sleep", sleep)
     glinet._transport.request.side_effect = [
         [],  # depth 0: still disabled
         {"wan_enabled": False},  # _tailscale_set_config -> get_config
@@ -96,14 +98,15 @@ async def test_tailscale_start_sleeps_before_retrying_after_first_attempt(glinet
 
 
 async def test_tailscale_stop_depth_limit_exhausted_raises_retry_exhausted(glinet):
+    # Public tailscale_stop() takes no depth; drive the internal worker.
     with pytest.raises(RetryExhausted, match="10 times"):
-        await glinet.tailscale_stop(depth=11)
+        await glinet._tailscale_stop(depth=11)
     glinet._transport.request.assert_not_awaited()
 
 
 async def test_tailscale_stop_sleeps_before_retrying_after_first_attempt(glinet, monkeypatch):
     sleep = AsyncMock()
-    monkeypatch.setattr("glinet4.glinet.asyncio.sleep", sleep)
+    monkeypatch.setattr("glinet4._routes.tailscale.asyncio.sleep", sleep)
     glinet._transport.request.side_effect = [
         {"status": 3},  # depth 0: still connected
         {"wan_enabled": True},  # _tailscale_set_config -> get_config
@@ -178,7 +181,7 @@ async def test_network_acceleration_set_surfaces_feature_conflict_error(glinet):
         ),
     ]
     with pytest.raises(FeatureConflictError, match="QoS is enabled"):
-        await glinet.network_acceleration_set(True)
+        await glinet.network_acceleration_set(enabled=True)
 
 
 # --- live-only coverage gaps: happy paths with realistic payloads ----------
@@ -187,57 +190,89 @@ async def test_network_acceleration_set_surfaces_feature_conflict_error(glinet):
 async def test_flow_stats_clear_calls_route(glinet):
     glinet._transport.request.return_value = {}
     result = await glinet.flow_stats_clear()
-    assert result == {}
+    assert result is None
     glinet._transport.build_sid_payload.assert_called_once_with(
         "call", ["flow_statistics", "clear_statistics", {}], "SID"
     )
 
 
-async def test_list_static_clients_returns_bindings(glinet):
+async def test_static_clients_list_unwraps_bindings(glinet):
+    # Envelope shape from a live fw 4.9.0 Flint 2 capture: the bindings ride
+    # under a "static_bind_list" key.
     bindings = [
-        {"mac": "AA:BB:CC:DD:EE:FF", "ip": "192.168.8.50", "name": "nas", "enabled": True},
+        {"mac": "AA:BB:CC:DD:EE:FF", "ip": "192.168.8.50", "name": "nas"},
     ]
-    glinet._transport.request.return_value = bindings
-    assert await glinet.list_static_clients() == bindings
+    glinet._transport.request.return_value = {"static_bind_list": bindings}
+    assert await glinet.static_clients_list() == bindings
     glinet._transport.build_sid_payload.assert_called_once_with(
         "call", ["lan", "get_static_bind_list"], "SID"
     )
 
 
-async def test_router_get_load_returns_load_info(glinet):
+async def test_static_clients_list_returns_empty_list_when_key_missing(glinet):
+    glinet._transport.request.return_value = {}
+    assert await glinet.static_clients_list() == []
+
+
+async def test_router_load_returns_load_info(glinet):
     glinet._transport.request.return_value = {
         "load_average": [0.1, 0.05, 0.01],
         "memory_free": 123456,
+        "memory_buff_cache": 65536,
         "memory_total": 262144,
     }
-    load = await glinet.router_get_load()
+    load = await glinet.router_load()
     assert load["memory_free"] == 123456
     glinet._transport.build_sid_payload.assert_called_once_with(
         "call", ["system", "get_load"], "SID"
     )
 
 
-async def test_router_mac_returns_factory_mac(glinet):
+async def test_router_mac_returns_factory_mac_string(glinet):
     glinet._transport.request.return_value = {"factory_mac": "AA:BB:CC:DD:EE:FF"}
     mac = await glinet.router_mac()
-    assert mac["factory_mac"] == "AA:BB:CC:DD:EE:FF"
+    assert mac == "AA:BB:CC:DD:EE:FF"
     glinet._transport.build_sid_payload.assert_called_once_with(
         "call", ["macclone", "get_mac"], "SID"
     )
 
 
-async def test_connected_to_internet_reports_detected_status(glinet):
-    # Defect 2: connected_to_internet must go through request_long_timeout,
-    # not request -- the router-side connectivity probe can block for
+async def test_router_reboot_sends_delay_and_discards_ack(glinet):
+    glinet._transport.request.return_value = {}
+    assert await glinet.router_reboot(5) is None
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call", ["system", "reboot", {"delay": 5}], "SID"
+    )
+
+
+async def test_router_mac_missing_factory_mac_raises(glinet):
+    glinet._transport.request.return_value = {"imitate_mac": "AA:BB:CC:DD:EE:FF"}
+    with pytest.raises(UnexpectedResponse, match="factory_mac"):
+        await glinet.router_mac()
+
+
+async def test_wan_upstream_router_detected_true_when_detected(glinet):
+    # Defect 2: wan_upstream_router_detected must go through request_long_timeout,
+    # not request -- the router-side upstream probe can block for
     # multiple seconds, the same class of delay diag ping exhibits.
     glinet._transport.request_long_timeout.return_value = {"detected": 1, "ip": "203.0.113.5"}
-    status = await glinet.connected_to_internet()
-    assert status["detected"] == 1
-    assert status["ip"] == "203.0.113.5"
+    assert await glinet.wan_upstream_router_detected() is True
     glinet._transport.build_sid_payload.assert_called_once_with(
         "call", ["edgerouter", "get_status"], "SID"
     )
     glinet._transport.request.assert_not_called()
+
+
+async def test_wan_upstream_router_detected_false_when_not_detected(glinet):
+    # Observed live on a fw 4.9.0 Flint 2 (which HAD a working WAN): the
+    # edgerouter probe answered {"detected": 0} -- see the method's caveat.
+    glinet._transport.request_long_timeout.return_value = {"detected": 0}
+    assert await glinet.wan_upstream_router_detected() is False
+
+
+async def test_wan_upstream_router_detected_false_on_non_dict_response(glinet):
+    glinet._transport.request_long_timeout.return_value = []
+    assert await glinet.wan_upstream_router_detected() is False
 
 
 async def test_tailscale_get_config_returns_config(glinet):

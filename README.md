@@ -60,12 +60,12 @@ Session: `login`, `router_reachable`. All other methods require login first.
 
 | Area | Methods |
 |---|---|
-| System | `router_info`, `router_get_status`, `router_get_load`, `router_unixtime`, `router_disk_info`, `router_usb_info`, `router_timezone_config`, `router_mac`, `router_reboot` |
-| Network / WAN | `ping`, `connected_to_internet`, `wan_cable_state`, `wan_status`, `wan_info`, `ethernet_ports_status`, `network_mode`, `network_interfaces_status` |
+| System | `router_info`, `router_status`, `router_load`, `router_unixtime`, `router_disk_info`, `router_usb_info`, `router_timezone_config`, `router_mac`, `router_reboot` |
+| Network / WAN | `ping`, `wan_upstream_router_detected`, `wan_cable_state`, `wan_status`, `wan_info`, `ethernet_ports_status`, `network_mode`, `network_interfaces_status` |
 | Network acceleration | `network_acceleration`, `network_acceleration_set` |
 | Flow statistics | `flow_stats_rule`, `flow_stats_set_enabled`, `flow_stats_top_apps`, `flow_stats_clear` |
-| Clients | `list_all_clients`, `list_static_clients`, `connected_clients`, `clients_status`, `clients_speed`, `wan_speed`, `client_set_blocked`, `blocked_client_macs` |
-| WiFi | `wifi_ifaces_get`, `wifi_iface_set_enabled`, `wifi_status`, `wifi_mlo_config` |
+| Clients | `clients_list`, `static_clients_list`, `connected_clients`, `clients_status`, `clients_speed`, `wan_speed`, `client_set_blocked`, `blocked_client_macs` |
+| WiFi | `wifi_ifaces`, `wifi_iface_set_enabled`, `wifi_status`, `wifi_mlo_config` |
 | Services | `adguard_config`, `tor_config`, `zerotier_config` |
 | Firmware | `firmware_check_online`, `upgrade_config` |
 | Firewall | `firewall_port_forward_list`, `firewall_dmz`, `firewall_wan_access`, `firewall_rule_list` |
