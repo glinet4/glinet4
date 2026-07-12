@@ -12,7 +12,8 @@ not a public issue.
 
 ## Scope note
 
-By design, `glinet4` talks to GL.iNet routers over plain HTTP on the LAN — the
-router's JSON-RPC API has no TLS option. The `sid` session token `login()`
-returns is therefore LAN-visible to anything that can observe traffic to the
+`glinet4` typically talks to GL.iNet routers over plain HTTP on the LAN. If
+your setup exposes the API over HTTPS with a self-signed certificate, see the
+transport's `ssl` parameter. Over plain HTTP, the `sid` session token
+`login()` returns is LAN-visible to anything that can observe traffic to the
 router; treat it as a LAN-local secret, not a durable credential.

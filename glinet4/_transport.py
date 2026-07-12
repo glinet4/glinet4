@@ -1,106 +1,107 @@
 """Transport and authentication layer for the GL.iNet router API.
 
-This module owns everything that touches the network: the uplink client, the
-JSON-RPC request methods, session-id (``sid``) state, and the challenge-response
-login flow with its CPU-bound password hashing. It is the only place in the
-package that performs I/O — the API layer (``glinet4.glinet.GLinet``) composes a
-``GLinetTransport`` and never imports uplink or talks to the client directly.
+This module owns everything that touches the network: the aiohttp session,
+the JSON-RPC request methods, session-id (``sid``) state, and the
+challenge-response login flow with its CPU-bound password hashing. It is the
+only place in the package that performs I/O — the API layer
+(``glinet4.glinet.GLinet``) composes a ``GLinetTransport`` and never talks to
+aiohttp directly.
 """
 
 import asyncio
 import hashlib
+from ssl import SSLContext
 from types import TracebackType
 from typing import Any
 
 import aiohttp
-import pydantic
 from passlib.hash import md5_crypt, sha256_crypt, sha512_crypt
-from uplink import (
-    AiohttpClient,
-    Body,
-    Consumer,
-    json,
-    post,
-    response_handler,
-    timeout,
-)
 
 from .error_handling import (
     APIClientError,
     AuthenticationError,
     UnexpectedResponse,
+    UnsuccessfulRequest,
     raise_for_status,
 )
 
-# Force Pydantic to resolve its lazy imports to prevent HA event loop blocking.
-# Lives here (not glinet.py, moved in Phase 2 Task 4) because it exists solely for
-# uplink's benefit: uplink's default converter registry (uplink.converters) pulls
-# in PydanticConverter unconditionally, so constructing a Consumer -- i.e. this
-# transport -- is what actually needs pydantic warmed up, not the API layer above.
-_ = pydantic.BaseModel
 
-
-class GLinetTransport(Consumer):  # type: ignore[misc]
+class GLinetTransport:
     """JSON-RPC transport for the GL.iNet API.
 
-    Owns the uplink client, request methods, ``sid`` state and the login flow.
+    POSTs JSON-RPC payloads to ``base_url`` over an ``aiohttp.ClientSession``
+    and shapes every response through
+    :func:`glinet4.error_handling.raise_for_status`. Owns the request methods,
+    ``sid`` state and the login flow.
 
-    Session ownership: pass ``session`` (a plain :class:`aiohttp.ClientSession`)
-    to have requests routed through a session you manage yourself -- this
-    transport will never close it. Passed neither ``session`` nor the legacy
-    ``client``, the transport creates and owns its own session (built lazily by
-    uplink, exactly as before this parameter existed) and :meth:`close` will
-    close it. Passing ``client`` directly (kept for backward compatibility;
-    scheduled for removal in the Phase 3 transport rewrite) is also treated as
-    caller-owned, since the caller is the one who caused that client -- and
-    whatever session it wraps -- to exist.
+    Session ownership: pass ``session`` to have requests routed through an
+    :class:`aiohttp.ClientSession` you manage yourself — this transport will
+    never close it. Without ``session``, the transport creates and owns its
+    own session (lazily, on first request, since aiohttp sessions must be
+    created inside a running event loop while this constructor stays
+    synchronous) and :meth:`close` will close it.
+
+    ``request_timeout`` and ``long_timeout`` are total-request timeouts in
+    seconds for :meth:`request` and :meth:`request_long_timeout` respectively.
+    Defaults (10s / 60s) are evidence-based from a live Flint 2 run: ordinary
+    RPCs return in well under a second, but a handful of diagnostics block
+    router-side for multiple seconds by design (e.g. the ``diag ping`` RPC
+    behind :meth:`~glinet4.glinet.GLinet.ping` and
+    :meth:`~glinet4.glinet.GLinet.connected_to_internet` waits out a ping
+    timeout server-side) -- those go through :meth:`request_long_timeout`.
+    ``ssl`` is handed through to every request: pass
+    ``False`` (or a custom :class:`ssl.SSLContext`) to talk HTTPS to a router
+    with a self-signed certificate; the default ``True`` keeps standard
+    certificate checking and is ignored entirely for plain ``http://`` URLs.
     """
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self,
-        sid: str | None = None,
+        base_url: str,
         session: aiohttp.ClientSession | None = None,
-        client: AiohttpClient | None = None,
-        **kwargs: Any,
+        sid: str | None = None,
+        request_timeout: float = 10,
+        long_timeout: float = 60,
+        ssl: bool | SSLContext = True,
     ) -> None:
+        self.base_url: str = base_url
         self.sid: str | None = sid
         self._logged_in: bool = sid is not None
-        self._owns_session: bool = session is None and client is None
-        if client is None:
-            client = AiohttpClient(session=session)
-        self._client: AiohttpClient = client
-        super().__init__(client=client, **kwargs)
+        self._owns_session: bool = session is None
+        self._session: aiohttp.ClientSession | None = session
+        self._request_timeout = aiohttp.ClientTimeout(total=request_timeout)
+        self._long_timeout = aiohttp.ClientTimeout(total=long_timeout)
+        self._ssl: bool | SSLContext = ssl
+
+    def _get_session(self) -> aiohttp.ClientSession:
+        """Return the session to send through, lazily creating an owned one.
+
+        ``self._session`` is only ever ``None`` when this transport owns its
+        session (a caller-supplied one is stored at construction and never
+        replaced): before the first request, and again after :meth:`close`,
+        so a reused transport transparently materializes a fresh session.
+        """
+        if self._session is None:
+            self._session = aiohttp.ClientSession()
+        return self._session
 
     async def close(self) -> None:
         """Close the aiohttp session this transport owns, if any.
 
-        Idempotent, but by re-checking actual session state on every call
-        rather than trusting a sticky "already closed" flag: this transport
-        can be reused after a no-op close (e.g. before any request has been
-        made), and uplink lazily materializes a real owned session on first
-        use. A sticky flag would short-circuit that later close() and leak
-        the session. Never closes a caller-supplied session (passed via
-        ``session=`` or the legacy ``client=``) -- ownership belongs to
-        whoever caused the session to exist, per the class docstring.
-
-        When this transport owns its session, uplink builds it lazily (see
-        :class:`uplink.AiohttpClient`): before the first request, the
-        underlying ``aiohttp.ClientSession`` hasn't been created yet, so
-        there is nothing to close, and this returns without error. After the
-        first request materializes it, this locates and closes it -- and
-        will do so again if a subsequent reuse materializes a new one.
+        Idempotent: closing resets the owned-session slot, so a second call
+        finds nothing to close, while a *reused* transport (request after
+        close) materializes a fresh owned session that a later close() will
+        find and close again. Never closes a caller-supplied session (passed
+        via ``session=``) — ownership belongs to whoever caused the session
+        to exist, per the class docstring. Before any request has been made
+        the owned session doesn't exist yet, and this returns without error.
         """
         if not self._owns_session:
             return
-        session = getattr(self._client, "_session", None)
-        if isinstance(session, aiohttp.ClientSession) and not session.closed:
+        session = self._session
+        self._session = None
+        if session is not None and not session.closed:
             await session.close()
-            # uplink's own AiohttpClient.__del__ would otherwise try to close
-            # this same session again at garbage-collection time -- exactly
-            # the failure mode this method exists to let callers avoid, since
-            # by then the event loop it needs is typically gone (RuntimeError
-            # on py3.12+). Tell it we've already handled the session.
-            setattr(self._client, "_auto_created_session", False)  # noqa: B010
 
     async def __aenter__(self) -> "GLinetTransport":
         return self
@@ -136,19 +137,57 @@ class GLinetTransport(Consumer):  # type: ignore[misc]
             "id": 0,
         }
 
-    @response_handler(raise_for_status)  # type: ignore[untyped-decorator]
-    @json  # type: ignore[untyped-decorator]
-    @post("")  # type: ignore[untyped-decorator]
-    @timeout(2)  # type: ignore[untyped-decorator]
-    async def request(self, data: Body) -> Any:
-        """Make a JSON-RPC request to the router (2s timeout)."""
+    async def _post(self, data: dict[str, Any], client_timeout: aiohttp.ClientTimeout) -> Any:
+        """POST a JSON-RPC payload and shape the response via raise_for_status.
 
-    @response_handler(raise_for_status)  # type: ignore[untyped-decorator]
-    @json  # type: ignore[untyped-decorator]
-    @post("")  # type: ignore[untyped-decorator]
-    @timeout(5)  # type: ignore[untyped-decorator]
-    async def request_long_timeout(self, data: Body) -> Any:
-        """Make a JSON-RPC request to the router (5s timeout)."""
+        The payload travels as aiohttp's ``json=`` (default ``json.dumps``
+        serialization, ``Content-Type: application/json``) — exactly the wire
+        shape the pre-rewrite transport stack produced (pinned by the
+        wire-shape characterization tests in ``tests/test_transport.py``).
+        ``raise_for_status`` reads the body itself, which returns the
+        connection to the pool; the ``finally: release()`` covers the paths
+        where it raises before the body was fully read, so no request path
+        can leak a connection.
+
+        Every raising path stays inside the :class:`APIClientError` hierarchy:
+        a request that exceeds ``client_timeout`` raises a bare
+        :class:`TimeoutError` (``asyncio.TimeoutError`` is the same class from
+        Python 3.11 on), and connection-level failures (DNS failure,
+        connection refused, ...) raise an :class:`aiohttp.ClientError`
+        subclass -- both are caught here and re-raised as
+        :class:`~glinet4.error_handling.UnsuccessfulRequest` with the
+        original exception preserved as ``__cause__``.
+        """
+        session = self._get_session()
+        response: aiohttp.ClientResponse | None = None
+        try:
+            response = await session.request(
+                "POST", self.base_url, json=data, timeout=client_timeout, ssl=self._ssl
+            )
+            return await raise_for_status(response)
+        except TimeoutError as exc:
+            raise UnsuccessfulRequest(
+                f"Request to {self.base_url} timed out after {client_timeout.total}s"
+            ) from exc
+        except aiohttp.ClientError as exc:
+            raise UnsuccessfulRequest(
+                f"Request to {self.base_url} failed: {type(exc).__name__}: {exc}"
+            ) from exc
+        finally:
+            if response is not None:
+                response.release()
+
+    async def request(self, data: dict[str, Any]) -> Any:
+        """Make a JSON-RPC request to the router (default 10s total timeout)."""
+        return await self._post(data, self._request_timeout)
+
+    async def request_long_timeout(self, data: dict[str, Any]) -> Any:
+        """Make a JSON-RPC request to the router (default 60s total timeout).
+
+        For RPCs the router answers slowly by design, e.g. ``diag ping``
+        (see :meth:`~glinet4.glinet.GLinet.ping`).
+        """
+        return await self._post(data, self._long_timeout)
 
     async def _challenge(self, username: str) -> Any:
         """Request a login challenge to start the login process."""
@@ -185,6 +224,10 @@ class GLinetTransport(Consumer):  # type: ignore[misc]
         with the failing type named in the message.
         """
 
+        # The digest algorithms here (md5/sha256/sha512 over user:cipher:nonce)
+        # are dictated by the router's challenge response (`alg`/`hash_method`)
+        # -- this is the firmware's wire handshake, not password storage. The
+        # password is salted unix-crypt'd (rounds=5000) before this step.
         def _compute_hash(  # pylint: disable=too-many-arguments,too-many-positional-arguments
             alg: int,
             salt: str,

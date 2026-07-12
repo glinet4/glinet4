@@ -14,7 +14,6 @@ from typing import Any, cast
 
 import aiohttp
 from semver import Version
-from uplink import AiohttpClient
 
 from glinet4.enums import TailscaleConnection
 
@@ -126,19 +125,16 @@ class GLinet:
         base_url: str,
         sid: str | None = None,
         session: aiohttp.ClientSession | None = None,
-        client: AiohttpClient | None = None,
         **kwargs: Any,
     ) -> None:
-        self._transport = GLinetTransport(
-            sid=sid, session=session, client=client, base_url=base_url, **kwargs
-        )
+        self._transport = GLinetTransport(sid=sid, session=session, base_url=base_url, **kwargs)
         self._firmware_version: Version | None = None
         self._firmware_version_raw: str | None = None
 
     async def close(self) -> None:
         """Close the session this client owns, if any (see :class:`GLinetTransport`).
 
-        Idempotent; never closes a caller-supplied ``session`` or ``client``.
+        Idempotent; never closes a caller-supplied ``session``.
         """
         await self._transport.close()
 
@@ -182,25 +178,6 @@ class GLinet:
     def _payload(self, method: str, params: list[Any]) -> dict[str, Any]:
         """Build an authenticated JSON-RPC payload for the current session."""
         return self._transport.build_sid_payload(method, params, self.sid)
-
-    @staticmethod
-    def gen_sid_payload(method: str, params: list[Any], sid: str | None = None) -> dict[str, Any]:
-        """Deprecated compatibility shim for the authenticated payload builder.
-
-        Retained so callers that built payloads via ``GLinet.gen_sid_payload``
-        keep working. New code should use the transport's ``build_sid_payload``.
-        Like that builder, this does not mutate ``params``.
-        """
-        return GLinetTransport.build_sid_payload(method, params, sid)
-
-    @staticmethod
-    def gen_no_auth_payload(method: str, params: dict[str, Any]) -> dict[str, Any]:
-        """Deprecated compatibility shim for the unauthenticated payload builder.
-
-        Retained for backward compatibility; new code should use the
-        transport's ``build_no_auth_payload``.
-        """
-        return GLinetTransport.build_no_auth_payload(method, params)
 
     # --- raw API methods (one per RPC) ---------------------------------------
 
@@ -456,8 +433,15 @@ class GLinet:
         return bool(result != [])
 
     async def connected_to_internet(self) -> Any:
-        """Return the upstream/edge-router connectivity status."""
-        return await self._transport.request(self._payload("call", ["edgerouter", "get_status"]))
+        """Return the upstream/edge-router connectivity status.
+
+        Routed through the long timeout: the router-side connectivity probe
+        can block for multiple seconds, the same class of delay
+        :meth:`ping`'s ``diag ping`` RPC exhibits.
+        """
+        return await self._transport.request_long_timeout(
+            self._payload("call", ["edgerouter", "get_status"])
+        )
 
     async def wan_cable_state(self) -> WanCableState:
         """Return WAN cable presence and macclone flags."""
