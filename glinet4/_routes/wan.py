@@ -38,17 +38,17 @@ class WanRoutes:
             return "bytes from" in result["ping_result"]
         return bool(result != [])
 
-    async def connected_to_internet(self) -> bool:
-        """Return True when the router's upstream probe reports a detection.
+    async def wan_upstream_router_detected(self) -> bool:
+        """Return True when the router's upstream-router probe reports detection.
 
         Wraps ``edgerouter get_status``, mapping its ``detected`` field to a
-        bool (non-zero means detected). Caveat: the RPC is the router's own
-        upstream/edge-router probe, not an end-to-end reachability check --
+        bool (non-zero means detected). Caveat: the RPC probes for an upstream
+        or edge router (a double-NAT indicator), not end-to-end reachability --
         a fw 4.9.0 Flint 2 with a working public WAN has been observed
-        reporting ``detected: 0`` -- so prefer :meth:`ping` when a positive
+        reporting ``detected: 0`` -- so use :meth:`ping` when a positive
         internet-reachability answer is needed.
 
-        Routed through the long timeout: the router-side connectivity probe
+        Routed through the long timeout: the router-side upstream probe
         can block for multiple seconds, the same class of delay
         :meth:`ping`'s ``diag ping`` RPC exhibits.
         """

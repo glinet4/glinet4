@@ -251,28 +251,28 @@ async def test_router_mac_missing_factory_mac_raises(glinet):
         await glinet.router_mac()
 
 
-async def test_connected_to_internet_true_when_detected(glinet):
-    # Defect 2: connected_to_internet must go through request_long_timeout,
-    # not request -- the router-side connectivity probe can block for
+async def test_wan_upstream_router_detected_true_when_detected(glinet):
+    # Defect 2: wan_upstream_router_detected must go through request_long_timeout,
+    # not request -- the router-side upstream probe can block for
     # multiple seconds, the same class of delay diag ping exhibits.
     glinet._transport.request_long_timeout.return_value = {"detected": 1, "ip": "203.0.113.5"}
-    assert await glinet.connected_to_internet() is True
+    assert await glinet.wan_upstream_router_detected() is True
     glinet._transport.build_sid_payload.assert_called_once_with(
         "call", ["edgerouter", "get_status"], "SID"
     )
     glinet._transport.request.assert_not_called()
 
 
-async def test_connected_to_internet_false_when_not_detected(glinet):
+async def test_wan_upstream_router_detected_false_when_not_detected(glinet):
     # Observed live on a fw 4.9.0 Flint 2 (which HAD a working WAN): the
     # edgerouter probe answered {"detected": 0} -- see the method's caveat.
     glinet._transport.request_long_timeout.return_value = {"detected": 0}
-    assert await glinet.connected_to_internet() is False
+    assert await glinet.wan_upstream_router_detected() is False
 
 
-async def test_connected_to_internet_false_on_non_dict_response(glinet):
+async def test_wan_upstream_router_detected_false_on_non_dict_response(glinet):
     glinet._transport.request_long_timeout.return_value = []
-    assert await glinet.connected_to_internet() is False
+    assert await glinet.wan_upstream_router_detected() is False
 
 
 async def test_tailscale_get_config_returns_config(glinet):

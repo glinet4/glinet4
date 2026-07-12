@@ -47,7 +47,7 @@ class GLinetTransport:
     RPCs return in well under a second, but a handful of diagnostics block
     router-side for multiple seconds by design (e.g. the ``diag ping`` RPC
     behind :meth:`~glinet4.glinet.GLinet.ping` and
-    :meth:`~glinet4.glinet.GLinet.connected_to_internet` waits out a ping
+    :meth:`~glinet4.glinet.GLinet.wan_upstream_router_detected` waits out an upstream probe
     timeout server-side) -- those go through :meth:`request_long_timeout`.
     ``ssl`` is handed through to every request: pass
     ``False`` (or a custom :class:`ssl.SSLContext`) to talk HTTPS to a router

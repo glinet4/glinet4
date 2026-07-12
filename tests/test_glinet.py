@@ -169,9 +169,9 @@ async def test_wifi_ifaces_set_enabled() -> None:
     assert iface_enabled_after != iface_enabled
 
 
-async def test_connected_to_internet() -> None:
+async def test_wan_upstream_router_detected() -> None:
     """Test the upstream-detection probe returns a bool."""
-    response = await router.connected_to_internet()
+    response = await router.wan_upstream_router_detected()
     print(response)
     # The edgerouter probe's detected flag is device/firmware dependent (a
     # fw 4.9.0 Flint 2 with working WAN reports 0), so only the type is pinned.
