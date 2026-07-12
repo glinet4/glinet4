@@ -545,9 +545,8 @@ async def test_wireguard_stop() -> None:
         if parsed_version >= NEW_VPN_CLIENT_VERSION:
             if "enabled" in first_status and not first_status["enabled"]:
                 break
-        else:
-            if "status" in first_status and first_status["status"] == 0:
-                break
+        elif "status" in first_status and first_status["status"] == 0:
+            break
 
         await asyncio.sleep(1)
 

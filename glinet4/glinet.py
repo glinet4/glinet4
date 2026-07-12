@@ -358,7 +358,7 @@ class GLinet:
         )
         if isinstance(result, dict) and "ping_result" in result:
             return "bytes from" in result["ping_result"]
-        return not result == []
+        return bool(result != [])
 
     async def connected_to_internet(self) -> Any:
         """Return the upstream/edge-router connectivity status."""
@@ -668,9 +668,7 @@ class GLinet:
                 return True
         except APIClientError:
             return False
-        if await self._tailscale_get_config() is False:
-            return False
-        return True
+        return await self._tailscale_get_config() is not False
 
     async def tailscale_start(self, depth: int = 0) -> bool:
         """Start tailscale, retrying until connected."""
