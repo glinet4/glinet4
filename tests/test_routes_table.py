@@ -32,7 +32,7 @@ above):
   only tests already live in test_state_machines.py (out of this task's file
   scope) -- left untouched rather than duplicated here.
 """
-# pylint: disable=missing-function-docstring,redefined-outer-name
+# pylint: disable=missing-function-docstring,protected-access,redefined-outer-name
 
 from typing import Any, NamedTuple
 
