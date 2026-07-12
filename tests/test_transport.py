@@ -1,10 +1,12 @@
 """Unit tests for the GLinet transport/auth layer (no hardware)."""
 # pylint: disable=missing-function-docstring,redefined-outer-name,protected-access,unused-argument
 
+import hashlib
 from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
 import pytest
+from passlib.hash import md5_crypt
 
 from glinet4._transport import GLinetTransport
 from glinet4.error_handling import (
@@ -174,12 +176,16 @@ class FakeAiohttpResponse:
     def __init__(self, status: int, json_body: object) -> None:
         self.status = status
         self._json_body = json_body
+        self.released = False
 
     async def json(self, content_type: object = None) -> object:
         return self._json_body
 
     async def text(self) -> str:
         return ""
+
+    def release(self) -> None:
+        self.released = True
 
 
 def _mock_aiohttp_session() -> MagicMock:
@@ -200,19 +206,20 @@ def _mock_aiohttp_session() -> MagicMock:
 
 
 async def test_close_is_safe_when_owned_session_never_materialized():
-    # No session/client given: uplink's own lazy factory hasn't built a real
-    # aiohttp.ClientSession yet (no request has been made). close() must be a
-    # safe no-op rather than erroring on the not-yet-instantiated placeholder.
+    # No session given: the owned session is created lazily on first request
+    # (construction is synchronous; aiohttp sessions need a running loop), so
+    # before any request there is nothing to close. close() must be a safe
+    # no-op rather than erroring on the not-yet-materialized session.
     transport = GLinetTransport(base_url="http://192.168.8.1/rpc")
     await transport.close()
 
 
 async def test_close_closes_owned_session_once_materialized():
-    # Simulate uplink having lazily materialized the real session (as it would
-    # after the first request) by poking the internal client's `_session`.
+    # Simulate the transport having lazily materialized its owned session (as
+    # it would after the first request) by poking `_session`.
     transport = GLinetTransport(base_url="http://192.168.8.1/rpc")
     mock_session = _mock_aiohttp_session()
-    transport._client._session = mock_session
+    transport._session = mock_session
     await transport.close()
     mock_session.close.assert_awaited_once()
 
@@ -227,44 +234,42 @@ async def test_close_does_not_close_injected_session():
 async def test_close_is_idempotent_on_owned_session():
     transport = GLinetTransport(base_url="http://192.168.8.1/rpc")
     mock_session = _mock_aiohttp_session()
-    transport._client._session = mock_session
+    transport._session = mock_session
     await transport.close()
     await transport.close()
     mock_session.close.assert_awaited_once()
 
 
 async def test_close_recloses_session_materialized_after_first_close():
-    # Reviewer-confirmed reproduction: close() on a never-materialized owned
-    # session must not permanently mark the transport as closed. If the
-    # (reused) transport later materializes a real owned session -- e.g. via
-    # uplink's lazy AiohttpClient after a subsequent request -- a second
-    # close() must find and close *that* session rather than short-circuiting
-    # on a sticky flag set by the earlier no-op.
+    # Reviewer-confirmed reproduction (Phase 2): close() on a never-
+    # materialized owned session must not permanently mark the transport as
+    # closed. If the (reused) transport later materializes a real owned
+    # session -- as a request after close() would -- a second close() must
+    # find and close *that* session rather than short-circuiting on a sticky
+    # flag set by the earlier no-op.
     transport = GLinetTransport(base_url="http://192.168.8.1/rpc")
     await transport.close()  # no session yet: safe no-op
 
-    # Simulate uplink lazily materializing a real session after reuse.
+    # Simulate a request after close() lazily materializing a new session.
     mock_session = _mock_aiohttp_session()
-    transport._client._session = mock_session
-    transport._client._auto_created_session = True
+    transport._session = mock_session
 
     await transport.close()
 
     mock_session.close.assert_awaited_once()
-    assert transport._client._auto_created_session is False
 
 
 async def test_async_context_manager_closes_owned_session():
     mock_session = _mock_aiohttp_session()
     async with GLinetTransport(base_url="http://192.168.8.1/rpc") as transport:
-        transport._client._session = mock_session
+        transport._session = mock_session
     mock_session.close.assert_awaited_once()
 
 
 async def test_async_context_manager_does_not_swallow_exceptions():
     mock_session = _mock_aiohttp_session()
     transport = GLinetTransport(base_url="http://192.168.8.1/rpc")
-    transport._client._session = mock_session
+    transport._session = mock_session
     with pytest.raises(ValueError, match="boom"):
         async with transport:
             raise ValueError("boom")
@@ -280,3 +285,196 @@ async def test_injected_session_routes_requests_through_it():
     result = await transport.request({"method": "call", "jsonrpc": "2.0", "params": [], "id": 0})
     assert result == {"ok": True}
     fake_session.request.assert_awaited_once()
+
+
+# --- Phase 3, Task 1: wire-shape characterization --------------------------
+#
+# These tests pin what the transport actually puts on the wire: the HTTP
+# method, the exact URL, and the exact JSON-RPC envelope handed to aiohttp via
+# its `json=` kwarg (which fixes both the serialization -- aiohttp's default
+# json.dumps -- and the Content-Type: application/json header). They were
+# written and ran GREEN against the pre-rewrite transport stack BEFORE the
+# plain-aiohttp rewrite, and must stay GREEN, unmodified, after it.
+#
+# They deliberately assert only the wire-load-bearing kwargs (`json`, and the
+# absence of a pre-serialized `data`), not the full kwargs dict: the rewrite
+# adds `timeout`/`ssl` kwargs, which change nothing about the bytes of the
+# request body or its target.
+
+
+def _wire_session(*responses: FakeAiohttpResponse) -> MagicMock:
+    """A mock aiohttp session answering request() with the given responses."""
+    session = MagicMock(spec=aiohttp.ClientSession)
+    session.request = AsyncMock(side_effect=list(responses))
+    return session
+
+
+def _posted_json(session: MagicMock, call_index: int = 0) -> object:
+    """The (method, url) pair and json= body of the nth session.request call."""
+    call = session.request.call_args_list[call_index]
+    assert call.args == ("POST", "http://192.168.8.1/rpc")
+    assert "data" not in call.kwargs  # body must go via json=, never pre-serialized
+    return call.kwargs["json"]
+
+
+async def test_wire_sid_call_posts_exact_json_rpc_envelope():
+    session = _wire_session(FakeAiohttpResponse(200, {"result": {"ok": True}}))
+    transport = GLinetTransport(session=session, base_url="http://192.168.8.1/rpc")
+    await transport.request(
+        GLinetTransport.build_sid_payload("call", ["system", "get_info"], "SID")
+    )
+    session.request.assert_awaited_once()
+    assert _posted_json(session) == {
+        "method": "call",
+        "jsonrpc": "2.0",
+        "params": ["SID", "system", "get_info"],
+        "id": 0,
+    }
+
+
+async def test_wire_no_auth_call_posts_exact_json_rpc_envelope():
+    session = _wire_session(FakeAiohttpResponse(200, {"result": {}}))
+    transport = GLinetTransport(session=session, base_url="http://192.168.8.1/rpc")
+    await transport.request(
+        GLinetTransport.build_no_auth_payload("challenge", {"username": "root"})
+    )
+    session.request.assert_awaited_once()
+    assert _posted_json(session) == {
+        "method": "challenge",
+        "jsonrpc": "2.0",
+        "params": {"username": "root"},
+        "id": 0,
+    }
+
+
+async def test_wire_long_timeout_call_posts_same_envelope():
+    session = _wire_session(FakeAiohttpResponse(200, {"result": {}}))
+    transport = GLinetTransport(session=session, base_url="http://192.168.8.1/rpc")
+    await transport.request_long_timeout(
+        GLinetTransport.build_sid_payload("call", ["diag", "ping", {"addr": "a"}], "SID")
+    )
+    session.request.assert_awaited_once()
+    assert _posted_json(session) == {
+        "method": "call",
+        "jsonrpc": "2.0",
+        "params": ["SID", "diag", "ping", {"addr": "a"}],
+        "id": 0,
+    }
+
+
+async def test_wire_login_flow_posts_challenge_then_login_hash():
+    # The full challenge-response login, end to end, down to the exact hash
+    # bytes on the wire: md5_crypt cipher password over the router's salt,
+    # then md5 over "username:cipher:nonce". If the rewrite perturbed the
+    # login flow or its hashing in any way, this fails.
+    session = _wire_session(
+        FakeAiohttpResponse(
+            200, {"result": {"alg": 1, "salt": "abc", "nonce": "xyz", "hash-method": "md5"}}
+        ),
+        FakeAiohttpResponse(200, {"result": {"sid": "SESSION"}}),
+    )
+    transport = GLinetTransport(session=session, base_url="http://192.168.8.1/rpc")
+    await transport.login("root", "password")
+
+    assert session.request.await_count == 2
+    assert _posted_json(session, 0) == {
+        "method": "challenge",
+        "jsonrpc": "2.0",
+        "params": {"username": "root"},
+        "id": 0,
+    }
+    cipher_password = md5_crypt.using(salt="abc").hash("password")
+    expected_hash = hashlib.md5(f"root:{cipher_password}:xyz".encode()).hexdigest()
+    assert _posted_json(session, 1) == {
+        "method": "login",
+        "jsonrpc": "2.0",
+        "params": {"username": "root", "hash": expected_hash},
+        "id": 0,
+    }
+    assert transport.sid == "SESSION"
+
+
+# --- Phase 3, Task 1: new per-instance knobs and aiohttp lifecycle ---------
+
+
+async def test_ssl_kwarg_is_passed_through_to_the_request():
+    # ssl=False must reach the session call so self-signed-HTTPS users can
+    # opt out of certificate checking.
+    session = _wire_session(FakeAiohttpResponse(200, {"result": {}}))
+    transport = GLinetTransport(session=session, base_url="https://192.168.8.1/rpc", ssl=False)
+    await transport.request(GLinetTransport.build_no_auth_payload("challenge", {"username": "u"}))
+    assert session.request.call_args.kwargs["ssl"] is False
+
+
+async def test_ssl_defaults_to_true():
+    # ssl=True is aiohttp's own request default (standard certificate
+    # checking; ignored entirely for http:// URLs), so the default changes
+    # nothing for existing users.
+    session = _wire_session(FakeAiohttpResponse(200, {"result": {}}))
+    transport = GLinetTransport(session=session, base_url="http://192.168.8.1/rpc")
+    await transport.request(GLinetTransport.build_no_auth_payload("challenge", {"username": "u"}))
+    assert session.request.call_args.kwargs["ssl"] is True
+
+
+def _sent_timeout(session: MagicMock) -> aiohttp.ClientTimeout:
+    timeout = session.request.call_args.kwargs["timeout"]
+    assert isinstance(timeout, aiohttp.ClientTimeout)
+    return timeout
+
+
+async def test_default_timeouts_are_2s_request_and_5s_long():
+    session = _wire_session(
+        FakeAiohttpResponse(200, {"result": {}}), FakeAiohttpResponse(200, {"result": {}})
+    )
+    transport = GLinetTransport(session=session, base_url="http://192.168.8.1/rpc")
+    payload = GLinetTransport.build_sid_payload("call", ["system", "get_info"], "SID")
+    await transport.request(payload)
+    assert _sent_timeout(session).total == 2
+    await transport.request_long_timeout(payload)
+    assert _sent_timeout(session).total == 5
+
+
+async def test_per_instance_timeouts_carry_configured_values():
+    session = _wire_session(
+        FakeAiohttpResponse(200, {"result": {}}), FakeAiohttpResponse(200, {"result": {}})
+    )
+    transport = GLinetTransport(
+        session=session,
+        base_url="http://192.168.8.1/rpc",
+        request_timeout=0.5,
+        long_timeout=30,
+    )
+    payload = GLinetTransport.build_sid_payload("call", ["system", "get_info"], "SID")
+    await transport.request(payload)
+    assert _sent_timeout(session).total == 0.5
+    await transport.request_long_timeout(payload)
+    assert _sent_timeout(session).total == 30
+
+
+async def test_request_releases_response_even_when_raise_for_status_raises():
+    # raise_for_status normally consumes the body (which returns the
+    # connection to the pool), but every path -- including raising ones --
+    # must end with the response released so no connection can leak.
+    error_response = FakeAiohttpResponse(500, {"result": {}})
+    session = _wire_session(error_response)
+    transport = GLinetTransport(session=session, base_url="http://192.168.8.1/rpc")
+    with pytest.raises(UnsuccessfulRequest):
+        await transport.request(
+            GLinetTransport.build_sid_payload("call", ["system", "get_info"], "SID")
+        )
+    assert error_response.released is True
+
+
+async def test_owned_session_materializes_lazily_and_close_resets_it():
+    # Construction is synchronous (pinned by test_construction_defaults);
+    # the owned aiohttp session only comes to exist inside a running loop,
+    # is cached across requests, and close() resets the slot so a reused
+    # transport materializes a fresh one.
+    transport = GLinetTransport(base_url="http://192.168.8.1/rpc")
+    assert transport._session is None
+    session = transport._get_session()
+    assert isinstance(session, aiohttp.ClientSession)
+    assert transport._get_session() is session
+    await transport.close()
+    assert session.closed
+    assert transport._session is None

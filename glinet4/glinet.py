@@ -14,7 +14,6 @@ from typing import Any, cast
 
 import aiohttp
 from semver import Version
-from uplink import AiohttpClient
 
 from glinet4.enums import TailscaleConnection
 
@@ -126,19 +125,16 @@ class GLinet:
         base_url: str,
         sid: str | None = None,
         session: aiohttp.ClientSession | None = None,
-        client: AiohttpClient | None = None,
         **kwargs: Any,
     ) -> None:
-        self._transport = GLinetTransport(
-            sid=sid, session=session, client=client, base_url=base_url, **kwargs
-        )
+        self._transport = GLinetTransport(sid=sid, session=session, base_url=base_url, **kwargs)
         self._firmware_version: Version | None = None
         self._firmware_version_raw: str | None = None
 
     async def close(self) -> None:
         """Close the session this client owns, if any (see :class:`GLinetTransport`).
 
-        Idempotent; never closes a caller-supplied ``session`` or ``client``.
+        Idempotent; never closes a caller-supplied ``session``.
         """
         await self._transport.close()
 

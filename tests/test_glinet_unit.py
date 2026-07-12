@@ -27,7 +27,7 @@ def test_positional_base_url_constructs():
     # Phase 2, Task 4: base_url is now the explicit first positional parameter
     # (previously it silently bound to `sid` and requests would go nowhere).
     g = GLinet("http://192.168.8.1/rpc")
-    assert g._transport.session.base_url == "http://192.168.8.1/rpc"
+    assert g._transport.base_url == "http://192.168.8.1/rpc"
 
 
 async def test_async_context_manager_delegates_close_to_transport():
