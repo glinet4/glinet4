@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from glinet4.error_codes import ERROR_CODES
 from glinet4.error_handling import (
     AuthenticationError,
     NonZeroResponse,
@@ -103,3 +104,19 @@ async def test_non_negative_error_code_returns_full_envelope():
     body = {"error": {"code": 0, "message": "ok"}}
     response = FakeResponse(status=200, json_body=body)
     assert await raise_for_status(response) == body
+
+
+async def test_known_catalog_code_surfaces_description_in_message():
+    response = FakeResponse(
+        status=200, json_body={"error": {"code": -32601, "message": "no such method"}}
+    )
+    with pytest.raises(NonZeroResponse, match=ERROR_CODES["-32601"]):
+        await raise_for_status(response)
+
+
+async def test_unknown_code_still_raises_non_zero_response():
+    response = FakeResponse(
+        status=200, json_body={"error": {"code": -999999, "message": "mystery failure"}}
+    )
+    with pytest.raises(NonZeroResponse, match="mystery failure"):
+        await raise_for_status(response)
