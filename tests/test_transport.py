@@ -6,7 +6,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
 import pytest
+from aiohttp import web
 from aiohttp.client_reqrep import ConnectionKey
+from aiohttp.test_utils import TestServer
 from passlib.hash import md5_crypt
 
 from glinet4._transport import GLinetTransport
@@ -311,10 +313,21 @@ def _wire_session(*responses: FakeAiohttpResponse) -> MagicMock:
 
 
 def _posted_json(session: MagicMock, call_index: int = 0) -> object:
-    """The (method, url) pair and json= body of the nth session.request call."""
+    """The (method, url) pair and json= body of the nth session.request call.
+
+    Asserting `"json" in call.kwargs` pins the mock-level half of the
+    Content-Type proof: aiohttp derives `Content-Type: application/json`
+    (and its default `json.dumps` serialization) from the *presence* of the
+    `json=` kwarg alone, never from a manually-set header. The other half --
+    that a real server actually receives that header on the wire -- is
+    proven by ``test_integration_mixed_requests_through_real_server_pool_one_connection``
+    below, which is not mocked.
+    """
     call = session.request.call_args_list[call_index]
     assert call.args == ("POST", "http://192.168.8.1/rpc")
     assert "data" not in call.kwargs  # body must go via json=, never pre-serialized
+    assert "json" in call.kwargs
+    assert "headers" not in call.kwargs  # no manual Content-Type override either
     return call.kwargs["json"]
 
 
@@ -537,3 +550,108 @@ async def test_owned_session_materializes_lazily_and_close_resets_it():
     await transport.close()
     assert session.closed
     assert transport._session is None
+
+
+# --- Phase 3, Task 3: wire-truth verification -------------------------------
+#
+# The id field: both build_sid_payload and build_no_auth_payload hard-code
+# `"id": 0` (see glinet4/_transport.py) -- there is no per-request unique or
+# incrementing counter anywhere in this module. That is pinned below as
+# CONSTANCY, deliberately, not uniqueness: every payload produced by either
+# builder, across any number of calls with different methods/params, carries
+# the exact same literal int 0. A regression that started emitting distinct
+# or incrementing ids per call (or a string/bool masquerading as one) would
+# be a wire-shape change these tests must catch.
+
+
+def _is_plain_int(value: object) -> bool:
+    """True only for a genuine int, excluding bool (a subclass, and 0 == False)."""
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def test_sid_payload_id_field_is_the_constant_literal_zero():
+    first = GLinetTransport.build_sid_payload("call", ["system", "get_info"], "SID")
+    second = GLinetTransport.build_sid_payload("call", ["diag", "ping"], "SID2")
+    assert first["id"] == 0
+    assert second["id"] == 0
+    assert _is_plain_int(first["id"])
+    assert _is_plain_int(second["id"])
+
+
+def test_no_auth_payload_id_field_is_the_constant_literal_zero():
+    challenge = GLinetTransport.build_no_auth_payload("challenge", {"username": "root"})
+    login = GLinetTransport.build_no_auth_payload("login", {"username": "root", "hash": "h"})
+    assert challenge["id"] == 0
+    assert login["id"] == 0
+    assert _is_plain_int(challenge["id"])
+    assert _is_plain_int(login["id"])
+
+
+async def test_integration_mixed_requests_through_real_server_pool_one_connection():
+    """The Task-1 review's deferred aiohttp.web lifecycle integration test.
+
+    Drives five mixed requests -- two successes, a JSON-RPC error (code -1,
+    "bad token" -> TokenError), another success, then an HTTP 500 ->
+    UnsuccessfulRequest -- through ONE transport against a REAL aiohttp.web
+    server bound to a loopback socket (nothing mocked). Afterwards it
+    inspects the transport's own aiohttp connector: exactly one pooled
+    (idle, reusable) connection and zero acquired (in-flight) connections at
+    rest, proving every response -- including both error paths -- is fully
+    read and released back to the pool rather than leaking a connection or a
+    socket. It also confirms, server-side, that every request actually
+    carried `Content-Type: application/json` on the wire: the mock-level
+    assertions elsewhere in this file (`_posted_json`) only prove aiohttp
+    *would* send that header via the `json=` kwarg; this is the real header,
+    received by a real server, closing the other half of that proof.
+
+    No sleeps; a local loopback round-trip is sub-millisecond, so this stays
+    well under 1s (confirmed via `pytest --durations`).
+    """
+    received_content_types: list[str | None] = []
+    # (status, body) for each request in order: success, success, token
+    # error, success, server error.
+    scripted_responses = [
+        (200, {"result": {"ok": True}}),
+        (200, {"result": {"ok": True}}),
+        (200, {"error": {"code": -1, "message": "bad token"}}),
+        (200, {"result": {"ok": True}}),
+        (500, {"result": {}}),
+    ]
+    call_count = 0
+
+    async def handler(request: web.Request) -> web.Response:
+        nonlocal call_count
+        received_content_types.append(request.content_type)
+        await request.json()  # fully drain the body, as a real router would
+        status, body = scripted_responses[call_count]
+        call_count += 1
+        return web.json_response(body, status=status)
+
+    app = web.Application()
+    app.router.add_post("/rpc", handler)
+    server = TestServer(app)
+    await server.start_server()
+    transport = GLinetTransport(base_url=str(server.make_url("/rpc")))
+    try:
+        payload = GLinetTransport.build_sid_payload("call", ["system", "get_info"], "SID")
+
+        assert await transport.request(payload) == {"ok": True}
+        assert await transport.request(payload) == {"ok": True}
+        with pytest.raises(TokenError):
+            await transport.request(payload)
+        assert await transport.request(payload) == {"ok": True}
+        with pytest.raises(UnsuccessfulRequest):
+            await transport.request(payload)
+
+        assert call_count == len(scripted_responses)
+        assert received_content_types == ["application/json"] * len(scripted_responses)
+
+        assert transport._session is not None  # materialized by the first request above
+        connector = transport._session.connector
+        assert connector is not None
+        pooled = sum(len(conns) for conns in connector._conns.values())
+        assert pooled == 1
+        assert len(connector._acquired) == 0
+    finally:
+        await transport.close()
+        await server.close()
