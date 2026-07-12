@@ -117,19 +117,30 @@ class SystemRoutes:
         return result
 
     async def router_mac(self) -> str:
-        """Return the router's factory MAC address.
+        """Return the router's MAC address, from ``system get_info``.
 
-        Wraps ``macclone get_mac``, returning its ``factory_mac`` value.
+        Previously wrapped the dedicated ``macclone get_mac`` RPC and
+        returned its ``factory_mac`` value; firmware >= 4.9.0 removed that
+        RPC outright (JSON-RPC -32601), and a fresh fw 4.9.0 capture carries
+        no mac-related method under any service, so there is no direct
+        replacement RPC. This now delegates to :meth:`router_info` and
+        returns its ``mac`` field instead.
+
+        Be aware this may not be a like-for-like swap: ``macclone get_mac``'s
+        exact semantics (factory-programmed MAC vs. whatever MAC the router
+        is currently presenting, which can differ on a MAC-cloned WAN setup)
+        are unverifiable without pre-4.9 hardware to test against. If that
+        factory-vs-current distinction matters to your use case, treat this
+        as returning the router's *reported* ``mac`` from system info, not a
+        confirmed factory MAC.
+
         Raises :class:`~glinet4.error_handling.UnexpectedResponse` if the
-        response carries no ``factory_mac``. Note the RPC itself is absent on
-        some devices/firmware (JSON-RPC -32601, observed on a fw 4.9.0
-        Flint 2), which surfaces as
-        :class:`~glinet4.error_handling.NonZeroResponse` from the transport.
+        response carries no ``mac`` (same contract as before).
         """
-        response = await self._transport.request(self._payload("call", ["macclone", "get_mac"]))
-        mac = response.get("factory_mac") if isinstance(response, dict) else None
+        info = await self.router_info()
+        mac = info.get("mac")
         if not isinstance(mac, str):
-            raise UnexpectedResponse("No factory_mac found in macclone get_mac response")
+            raise UnexpectedResponse("No mac found in router info")
         return mac
 
     async def router_reboot(self, delay: int = 0) -> None:

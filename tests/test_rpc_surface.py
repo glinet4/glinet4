@@ -63,7 +63,6 @@ KNOWN_UNCATALOGUED: set[tuple[str, str]] = {
     ("tailscale", "get_exit_node_list"),
     ("upgrade", "check_firmware_online"),
     # --- probed and confirmed gone on this device/firmware (JSON-RPC -32601) ---
-    ("macclone", "get_mac"),  # legacy MAC-clone RPC; not present on fw 4.9.0
     # superseded by vpn-client on fw >= NEW_VPN_CLIENT_VERSION (4.8.0-0); the
     # capture device runs 4.9.0, so its wg-client no longer answers get_status
     ("wg-client", "get_status"),
