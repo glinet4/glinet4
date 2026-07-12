@@ -19,7 +19,6 @@ from passlib.hash import md5_crypt, sha256_crypt, sha512_crypt
 
 from .error_handling import (
     APIClientError,
-    AuthenticationError,
     UnexpectedResponse,
     UnsuccessfulRequest,
     raise_for_status,
@@ -220,8 +219,14 @@ class GLinetTransport:
         if the challenge response is missing an expected key, or if the
         router requested a hashing algorithm this client doesn't implement
         (with the original exception as ``__cause__``). Any other
-        :class:`~glinet4.error_handling.APIClientError` is re-raised wrapped
-        with the failing type named in the message.
+        :class:`~glinet4.error_handling.APIClientError` raised during the
+        challenge/get_sid round trip -- e.g.
+        :class:`~glinet4.error_handling.UnsuccessfulRequest` from a dropped
+        connection -- also propagates unchanged, so callers'
+        ``except <SpecificSubclass>`` handling (e.g. mapping
+        ``UnsuccessfulRequest`` to a "cannot connect" error) still sees the
+        concrete type rather than a flattened, re-labeled
+        :class:`~glinet4.error_handling.APIClientError`.
         """
 
         # The digest algorithms here (md5/sha256/sha512 over user:cipher:nonce)
@@ -270,11 +275,6 @@ class GLinetTransport:
             if "sid" in res:
                 self.sid = res["sid"]
                 self._logged_in = True
-        except AuthenticationError:
-            # Let AuthenticationError (and subclasses like TokenError) pass through
-            # unwrapped: re-wrapping with a generic message discarded the router's
-            # own error text, including the -32000 catalog description.
-            raise
         except (KeyError, ValueError) as e:
             # A missing challenge-response key (KeyError) or a hashing/unsupported-
             # algorithm failure (ValueError from _compute_hash) both mean the router
@@ -283,10 +283,14 @@ class GLinetTransport:
             raise UnexpectedResponse(
                 f"Unexpected response from the router during login: {e}"
             ) from e
-        except APIClientError as e:
-            raise APIClientError(
-                f"An unexpected error of type {type(e).__name__} has occurred during login: {e}"
-            ) from e
+        # Every other APIClientError subclass -- AuthenticationError/TokenError
+        # from the router's own auth failures, UnsuccessfulRequest from a
+        # dropped connection, UnexpectedResponse from a malformed envelope,
+        # etc. -- is intentionally left uncaught here and propagates
+        # unchanged. An earlier version of this method caught the non-auth
+        # remainder and re-raised it flattened into the bare parent class,
+        # discarding the concrete type and breaking callers'
+        # `except <SpecificSubclass>` handling downstream (glinet4-ha PR #25).
 
     @property
     def logged_in(self) -> bool:
