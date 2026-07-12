@@ -9,6 +9,28 @@
 
 [![PyPI](https://img.shields.io/pypi/v/glinet4)](https://pypi.org/project/glinet4/) [![License: GPL-3.0](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
+## Quickstart
+
+```python
+import asyncio
+
+from glinet4 import GLinet
+
+
+async def main() -> None:
+    router = GLinet(base_url="http://192.168.8.1/rpc")
+    await router.login("root", "your-router-password")
+    info = await router.router_info()
+    print(info["model"], info["firmware_version"])
+
+
+asyncio.run(main())
+```
+
+Swap in your router's host, username and password. `login()` must succeed before any
+other call — see [API coverage](#api-coverage) below for the full method list, and
+[CONTRIBUTING.md](CONTRIBUTING.md) for how the test suite talks to a live router.
+
 An async Python 3 API wrapper for [GL.iNet](https://www.gl-inet.com/) routers running version 4.x firmware.
 
 GL.iNet routers are built on [OpenWRT](https://openwrt.org/) and expose a local [JSON-RPC API](https://web.archive.org/web/20240121142533/https://dev.gl-inet.com/router-4.x-api/). `glinet4` wraps that API for easy integration into other services such as [Home Assistant](https://www.home-assistant.io/).
@@ -29,12 +51,8 @@ GL.iNet routers are built on [OpenWRT](https://openwrt.org/) and expose a local 
 6. `uv run pytest -s` to see responses.
 7. Build with `uv build`. Releases publish to PyPI automatically on a GitHub Release (trusted publishing).
 
-## Dev setup alongside HA & the Custom component
-1. Clone the repo into the vscode `/workspaces/` dir
-2. The inside the `ha-env` terminal run `(ha-venv) vscode ➜ /workspaces/core (branch-name) $ pip install -e /workspaces/gli4py `
-3. Ensure the custom component has `"python.analysis.extraPaths": ["/workspaces/glinet4/"]` in `.vscode/settings.json`
-4. deactivate the `ha-env` with `deactivate`
-5. Do steps 3 onwards above
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contributor flow: running the live
+suite safely, the pre-commit/CI gates, and how to submit a device capture.
 
 ## API coverage
 
@@ -42,27 +60,38 @@ Session: `login`, `router_reachable`. All other methods require login first.
 
 | Area | Methods |
 |---|---|
-| System | `router_info`, `router_get_status`, `router_get_load`, `router_mac`, `router_reboot`, `router_unixtime`, `router_disk_info`, `router_usb_info`, `router_timezone_config` |
-| Network / WAN | `wan_status`, `wan_cable_state`, `wan_info`, `ethernet_ports_status`, `network_mode`, `network_interfaces_status`, `connected_to_internet`, `ping` |
-| Clients | `list_all_clients`, `list_static_clients`, `connected_clients`, `clients_status`, `clients_speed`, `wan_speed` |
+| System | `router_info`, `router_get_status`, `router_get_load`, `router_unixtime`, `router_disk_info`, `router_usb_info`, `router_timezone_config`, `router_mac`, `router_reboot` |
+| Network / WAN | `ping`, `connected_to_internet`, `wan_cable_state`, `wan_status`, `wan_info`, `ethernet_ports_status`, `network_mode`, `network_interfaces_status` |
+| Network acceleration | `network_acceleration`, `network_acceleration_set` |
+| Flow statistics | `flow_stats_rule`, `flow_stats_set_enabled`, `flow_stats_top_apps`, `flow_stats_clear` |
+| Clients | `list_all_clients`, `list_static_clients`, `connected_clients`, `clients_status`, `clients_speed`, `wan_speed`, `client_set_blocked`, `blocked_client_macs` |
 | WiFi | `wifi_ifaces_get`, `wifi_iface_set_enabled`, `wifi_status`, `wifi_mlo_config` |
+| Services | `adguard_config`, `tor_config`, `zerotier_config` |
 | Firmware | `firmware_check_online`, `upgrade_config` |
 | Firewall | `firewall_port_forward_list`, `firewall_dmz`, `firewall_wan_access`, `firewall_rule_list` |
 | LED | `led_config`, `led_set_enabled` |
 | WireGuard | `wireguard_client_list`, `wireguard_client_state`, `wireguard_client_start`, `wireguard_client_stop` |
-| Tailscale | `tailscale_configured`, `tailscale_connection_state`, `tailscale_start`, `tailscale_stop`, `tailscale_auth_url`, `tailscale_exit_node_list` |
+| Tailscale | `tailscale_configured`, `tailscale_connection_state`, `tailscale_start`, `tailscale_stop`, `tailscale_auth_url`, `tailscale_exit_node_list`, `tailscale_set_exit_node` |
 
 Responses are typed with `TypedDict`s (see `glinet4/_types.py`); the package ships `py.typed`.
-The catalogue of routes still to wrap comes from the sanitised device captures in
-[glinet-registry](https://github.com/shauneccles/glinet-registry).
+The catalogue of routes still to wrap comes from the sanitised device captures submitted to
+[glinet4-registry](https://github.com/glinet4/glinet4-registry) — run `uvx glinet4-profiler`
+against your own router to contribute one.
 
 Todo list:
-- [x] Decide on useful endpoints to expose - see https://github.com/HarvsG/ha-glinet-integration#todo
+- [x] Decide on useful endpoints to expose
 - [ ] Expose said endpoints (ongoing — see the table above and glinet4/glinet4 issues)
 - [x] Package correctly
 - [x] Test that dev enviroment is re-producable
 - [x] Publish on pip
 - [x] Static typing
+
+## Versioning & stability
+
+`glinet4` is pre-1.0: breaking changes can land in a minor version bump, not just a
+major one. [CHANGELOG.md](CHANGELOG.md) (generated by release-please from conventional
+commits) is the authoritative record of what changed in each release — check it before
+upgrading.
 
 ---
 

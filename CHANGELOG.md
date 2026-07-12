@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.0 (2026-07-11)
+
+Initial PyPI release. `glinet4` is a rebrand/fork of
+[HarvsG/gli4py](https://github.com/HarvsG/gli4py) (GPL-3.0); see
+[NOTICE](NOTICE) for full attribution.
+
 ## [0.1.1](https://github.com/glinet4/glinet4/compare/v0.1.0...v0.1.1) (2026-07-12)
 
 

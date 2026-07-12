@@ -7,6 +7,22 @@ license = "GPL-3.0-or-later"
 license-files = ["LICENSE", "NOTICE"]
 requires-python = ">=3.11"
 authors = [{ name = "glinet4 contributors" }]
+keywords = ["gl-inet", "glinet", "router", "openwrt", "json-rpc", "async", "home-assistant"]
+# No `License ::` classifiers: PEP 639 SPDX `license` above is already authoritative.
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Framework :: AsyncIO",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: System :: Networking",
+    "Topic :: Home Automation",
+    "Typing :: Typed",
+]
 # Derived from HarvsG/gli4py (GPL-3.0). See NOTICE.
 # Runtime dependencies.
 dependencies = [
