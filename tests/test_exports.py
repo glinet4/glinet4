@@ -8,6 +8,7 @@ Two invariants:
    leading underscore) must be exported, so consumers can import response
    shapes without reaching into the private ``_types`` module.
 """
+# pylint: disable=missing-function-docstring
 
 import ast
 import typing
@@ -21,7 +22,7 @@ INIT_PATH = Path(glinet4.__file__)
 
 def _names_imported_by_init() -> set[str]:
     """Return every name bound by an ``from .x import ...`` in __init__.py."""
-    tree = ast.parse(INIT_PATH.read_text())
+    tree = ast.parse(INIT_PATH.read_text(encoding="utf-8"))
     names: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
