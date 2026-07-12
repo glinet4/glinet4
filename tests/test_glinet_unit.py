@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock
 import pytest
 from semver import Version
 
-from glinet4._transport import GLinetTransport
 from glinet4.enums import TailscaleConnection
 from glinet4.error_handling import RetryExhausted, UnexpectedResponse
 from glinet4.glinet import GLinet
@@ -52,22 +51,6 @@ async def test_close_delegates_to_transport():
     g._transport.close = AsyncMock()
     await g.close()
     g._transport.close.assert_awaited_once()
-
-
-def test_gen_sid_payload_shim_forwards_non_mutating():
-    # The shim must forward to the transport builder and not mutate the caller's list.
-    params = ["system", "get_info"]
-    assert GLinet.gen_sid_payload("call", params, "SID") == GLinetTransport.build_sid_payload(
-        "call", ["system", "get_info"], "SID"
-    )
-    assert params == ["system", "get_info"]
-
-
-def test_gen_no_auth_payload_shim_forwards():
-    # The shim must forward to the transport builder.
-    assert GLinet.gen_no_auth_payload(
-        "challenge", {"username": "root"}
-    ) == GLinetTransport.build_no_auth_payload("challenge", {"username": "root"})
 
 
 async def test_router_info_delegates_and_caches_firmware(glinet):

@@ -26,11 +26,9 @@ classifiers = [
 # Derived from HarvsG/gli4py (GPL-3.0). See NOTICE.
 # Runtime dependencies.
 dependencies = [
-    "uplink>=0.10.0",
     "libpass>=1.8.0",
     "semver>=3.0.0",
-    "aiohttp>=3.8.4",
-    "pydantic>=2.0",
+    "aiohttp>=3.10",
 ]
 
 [project.urls]
@@ -91,15 +89,16 @@ disable = [
     "too-many-instance-attributes",  # same rationale as too-many-public-methods
     "too-few-public-methods",  # small typed data containers don't need N public methods to justify existing
     "too-many-branches",  # login()'s hash-algorithm dispatch reads clearer as one branch ladder than split helpers
-    "abstract-method",  # uplink's Consumer stub methods (request, request_long_timeout) have no body; pylint misreads them as unimplemented abstracts -- remove with uplink (Phase 3)
-    "overridden-final-method",  # uplink's metaclass-driven Consumer internals read as final to pylint's static analysis -- remove with uplink (Phase 3)
 ]
 
 [tool.mypy]
 python_version = "3.11"
 strict = true
 files = ["glinet4"]
+mypy_path = ["stubs"]
 
-[[tool.mypy.overrides]]
-module = ["uplink", "passlib", "passlib.*"]
-ignore_missing_imports = true
+# passlib.hash replaces itself at runtime with a lazy-loading proxy object
+# (passlib/registry.py), so mypy can never see real attribute types for it
+# even with a py.typed marker; `stubs/passlib/hash.pyi` types the three
+# crypt handlers glinet4._transport actually imports, so no
+# ignore_missing_imports override is needed for passlib.

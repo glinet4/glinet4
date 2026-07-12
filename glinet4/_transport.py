@@ -48,8 +48,8 @@ class GLinetTransport:
     router-side for multiple seconds by design (e.g. the ``diag ping`` RPC
     behind :meth:`~glinet4.glinet.GLinet.ping` and
     :meth:`~glinet4.glinet.GLinet.connected_to_internet` waits out a ping
-    timeout server-side) or reach out to GL.iNet's own servers (the
-    firmware-update check). ``ssl`` is handed through to every request: pass
+    timeout server-side) -- those go through :meth:`request_long_timeout`.
+    ``ssl`` is handed through to every request: pass
     ``False`` (or a custom :class:`ssl.SSLContext`) to talk HTTPS to a router
     with a self-signed certificate; the default ``True`` keeps standard
     certificate checking and is ignored entirely for plain ``http://`` URLs.

@@ -1,8 +1,9 @@
 """Typed response shapes for the GL.iNet API.
 
-These are ``TypedDict``s, not pydantic models: methods still return plain dicts
-at runtime. They exist so consumers (and ``mypy --strict``) get response types.
-``total=False`` is used where the router omits keys depending on firmware/state.
+These are ``TypedDict``s: methods still return plain dicts at runtime, not
+model instances. They exist so consumers (and ``mypy --strict``) get response
+types. ``total=False`` is used where the router omits keys depending on
+firmware/state.
 """
 
 from typing import Any, TypedDict

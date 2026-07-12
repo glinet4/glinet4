@@ -426,9 +426,9 @@ def _sent_timeout(session: MagicMock) -> aiohttp.ClientTimeout:
 async def test_default_timeouts_are_10s_request_and_60s_long():
     # Evidence-based (live Flint 2 run): ordinary RPCs return in well under a
     # second, but diagnostics like `diag ping` block router-side for
-    # multiple seconds by design, and firmware-check reaches GL.iNet's own
-    # servers -- 2s/5s were never a real effective timeout under the old
-    # uplink stack (its @timeout decorators were silently ignored).
+    # multiple seconds by design -- 2s/5s were never a real effective
+    # timeout under the pre-rewrite transport stack (its @timeout
+    # decorators were silently ignored).
     session = _wire_session(
         FakeAiohttpResponse(200, {"result": {}}), FakeAiohttpResponse(200, {"result": {}})
     )
