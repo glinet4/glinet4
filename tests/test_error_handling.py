@@ -7,7 +7,9 @@ import pytest
 
 from glinet4.error_codes import ERROR_CODES
 from glinet4.error_handling import (
+    APIClientError,
     AuthenticationError,
+    FeatureConflictError,
     NonZeroResponse,
     TokenError,
     UnsuccessfulRequest,
@@ -120,3 +122,100 @@ async def test_unknown_code_still_raises_non_zero_response():
     )
     with pytest.raises(NonZeroResponse, match="mystery failure"):
         await raise_for_status(response)
+
+
+# --- Phase 2: disambiguating code -1 (auth vs feature conflict) ---------------
+
+
+async def test_conflict_message_on_code_minus_1_raises_feature_conflict_error():
+    response = FakeResponse(
+        status=200,
+        json_body={
+            "error": {
+                "code": -1,
+                "message": "Operation conflicts with another enabled feature",
+            }
+        },
+    )
+    with pytest.raises(FeatureConflictError):
+        await raise_for_status(response)
+
+
+async def test_plain_minus_1_without_conflict_wording_still_raises_token_error():
+    # Unchanged path: a -1 whose message doesn't match the conflict discriminator
+    # is still "not logged in" and must keep raising TokenError so existing
+    # HA-style "on TokenError, re-login and retry" callers keep working.
+    response = FakeResponse(status=200, json_body={"error": {"code": -1, "message": "bad token"}})
+    with pytest.raises(TokenError):
+        await raise_for_status(response)
+
+
+async def test_feature_conflict_error_is_caught_by_except_non_zero_response():
+    response = FakeResponse(
+        status=200,
+        json_body={"error": {"code": -1, "message": "feature CONFLICT detected"}},
+    )
+    with pytest.raises(NonZeroResponse):
+        await raise_for_status(response)
+
+
+async def test_feature_conflict_error_is_caught_by_except_api_client_error():
+    response = FakeResponse(
+        status=200,
+        json_body={"error": {"code": -1, "message": "feature CONFLICT detected"}},
+    )
+    with pytest.raises(APIClientError):
+        await raise_for_status(response)
+
+
+async def test_feature_conflict_message_match_is_case_insensitive():
+    response = FakeResponse(
+        status=200,
+        json_body={"error": {"code": -1, "message": "CONFLICT: QoS is currently enabled"}},
+    )
+    with pytest.raises(FeatureConflictError):
+        await raise_for_status(response)
+
+
+# --- Phase 2: body-level err_code inside a successful envelope ----------------
+
+
+async def test_body_level_err_code_nonzero_raises_non_zero_response_with_message():
+    response = FakeResponse(
+        status=200,
+        json_body={"result": {"err_code": -1, "err_msg": "Missing modem_mode parameter"}},
+    )
+    with pytest.raises(NonZeroResponse, match="Missing modem_mode parameter"):
+        await raise_for_status(response)
+
+
+async def test_body_level_err_code_with_conflict_wording_raises_feature_conflict_error():
+    response = FakeResponse(
+        status=200,
+        json_body={"result": {"err_code": -1, "err_msg": "feature conflict: QoS enabled"}},
+    )
+    with pytest.raises(FeatureConflictError):
+        await raise_for_status(response)
+
+
+async def test_body_level_err_code_zero_returns_result_unchanged():
+    # Regression guard: a well-behaved response that merely echoes err_code: 0
+    # inside its result body must keep returning normally.
+    result = {"err_code": 0, "ok": True}
+    response = FakeResponse(status=200, json_body={"result": result})
+    assert await raise_for_status(response) == result
+
+
+async def test_body_level_err_code_absent_returns_result_unchanged():
+    # Regression guard for every existing getter: a plain dict result with no
+    # err_code key at all must keep returning unchanged.
+    result = {"ok": True}
+    response = FakeResponse(status=200, json_body={"result": result})
+    assert await raise_for_status(response) == result
+
+
+async def test_result_list_returns_unchanged():
+    # Regression guard: some endpoints (e.g. flow_stats_top_apps) return a bare
+    # list as "result"; the body-level err_code check must not choke on that.
+    response = FakeResponse(status=200, json_body={"result": [1, 2, 3]})
+    assert await raise_for_status(response) == [1, 2, 3]

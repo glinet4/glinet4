@@ -285,9 +285,13 @@ class GLinet:
     async def network_acceleration_set(self, enabled: bool) -> Any:
         """Enable or disable NAT acceleration.
 
-        The router rejects the change with ``err_code`` -1 and a message when a
-        conflicting feature (Parental Control / QoS / SQM / DPI) is active, so
-        callers should surface that message rather than assume success.
+        The router rejects the change with JSON-RPC error code -1 when a
+        conflicting feature (Parental Control / QoS / SQM / DPI) is active. That
+        code is shared with "not logged in" errors, so this raises
+        :class:`~glinet4.error_handling.FeatureConflictError` (a
+        :class:`~glinet4.error_handling.NonZeroResponse`) rather than
+        :class:`~glinet4.error_handling.TokenError` when the router's message
+        indicates a conflict, so callers don't loop on re-authentication.
         """
         current = await self.network_acceleration()
         return await self._transport.request(

@@ -40,11 +40,13 @@ from ._types import (
     ZerotierConfig,
 )
 from .enums import TailscaleConnection
+from .error_handling import FeatureConflictError
 from .glinet import GLinet
 
 __all__ = [
     "GLinet",
     "TailscaleConnection",
+    "FeatureConflictError",
     "AdguardConfig",
     "Client",
     "ClientsStatus",
