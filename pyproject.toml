@@ -1,6 +1,6 @@
 [project]
 name = "glinet4"
-version = "0.1.0"
+version = "0.1.1"
 description = "A Python 3 async API wrapper for GL.iNet routers (firmware 4.x JSON-RPC API)"
 readme = "README.md"
 license = "GPL-3.0-or-later"
