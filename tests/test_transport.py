@@ -153,9 +153,19 @@ class FakeAiohttpResponse:
 
 
 def _mock_aiohttp_session() -> MagicMock:
-    """A MagicMock passing isinstance(x, aiohttp.ClientSession), with an async close()."""
+    """A MagicMock passing isinstance(x, aiohttp.ClientSession), with an async close().
+
+    ``closed`` starts False (mirroring a real, freshly built ClientSession) and
+    flips to True once ``close()`` is awaited, so tests can exercise close()'s
+    session-state check the same way it behaves against the real thing.
+    """
     session = MagicMock(spec=aiohttp.ClientSession)
-    session.close = AsyncMock()
+    session.closed = False
+
+    async def _close() -> None:
+        session.closed = True
+
+    session.close = AsyncMock(side_effect=_close)
     return session
 
 
@@ -191,6 +201,27 @@ async def test_close_is_idempotent_on_owned_session():
     await transport.close()
     await transport.close()
     mock_session.close.assert_awaited_once()
+
+
+async def test_close_recloses_session_materialized_after_first_close():
+    # Reviewer-confirmed reproduction: close() on a never-materialized owned
+    # session must not permanently mark the transport as closed. If the
+    # (reused) transport later materializes a real owned session -- e.g. via
+    # uplink's lazy AiohttpClient after a subsequent request -- a second
+    # close() must find and close *that* session rather than short-circuiting
+    # on a sticky flag set by the earlier no-op.
+    transport = GLinetTransport(base_url="http://192.168.8.1/rpc")
+    await transport.close()  # no session yet: safe no-op
+
+    # Simulate uplink lazily materializing a real session after reuse.
+    mock_session = _mock_aiohttp_session()
+    transport._client._session = mock_session
+    transport._client._auto_created_session = True
+
+    await transport.close()
+
+    mock_session.close.assert_awaited_once()
+    assert transport._client._auto_created_session is False
 
 
 async def test_async_context_manager_closes_owned_session():

@@ -66,7 +66,6 @@ class GLinetTransport(Consumer):  # type: ignore[misc]
         self.sid: str | None = sid
         self._logged_in: bool = sid is not None
         self._owns_session: bool = session is None and client is None
-        self._closed: bool = False
         if client is None:
             client = AiohttpClient(session=session)
         self._client: AiohttpClient = client
@@ -75,7 +74,12 @@ class GLinetTransport(Consumer):  # type: ignore[misc]
     async def close(self) -> None:
         """Close the aiohttp session this transport owns, if any.
 
-        Idempotent. Never closes a caller-supplied session (passed via
+        Idempotent, but by re-checking actual session state on every call
+        rather than trusting a sticky "already closed" flag: this transport
+        can be reused after a no-op close (e.g. before any request has been
+        made), and uplink lazily materializes a real owned session on first
+        use. A sticky flag would short-circuit that later close() and leak
+        the session. Never closes a caller-supplied session (passed via
         ``session=`` or the legacy ``client=``) -- ownership belongs to
         whoever caused the session to exist, per the class docstring.
 
@@ -83,13 +87,13 @@ class GLinetTransport(Consumer):  # type: ignore[misc]
         :class:`uplink.AiohttpClient`): before the first request, the
         underlying ``aiohttp.ClientSession`` hasn't been created yet, so
         there is nothing to close, and this returns without error. After the
-        first request materializes it, this locates and closes it.
+        first request materializes it, this locates and closes it -- and
+        will do so again if a subsequent reuse materializes a new one.
         """
-        if self._closed or not self._owns_session:
+        if not self._owns_session:
             return
-        self._closed = True
         session = getattr(self._client, "_session", None)
-        if isinstance(session, aiohttp.ClientSession):
+        if isinstance(session, aiohttp.ClientSession) and not session.closed:
             await session.close()
             # uplink's own AiohttpClient.__del__ would otherwise try to close
             # this same session again at garbage-collection time -- exactly
