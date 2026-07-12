@@ -772,6 +772,7 @@ class GLinet:
                 )
             return True
         if status in [1, 2]:
+            # Not literal exhaustion: login-required is a state no retry can fix (see RetryExhausted docstring).
             raise RetryExhausted(
                 "Connection not attempted as authorisation is not complete, due to "
                 f"{TailscaleConnection(status).name}"
@@ -800,6 +801,7 @@ class GLinet:
             depth += 1
             return await self.tailscale_stop(depth)
         if status in [1, 2]:
+            # Not literal exhaustion: login-required is a state no retry can fix (see RetryExhausted docstring).
             raise RetryExhausted(
                 "Disconnection not attempted as tailscale authorisation is not "
                 f"complete, due to {TailscaleConnection(status).name}. Therefore "
