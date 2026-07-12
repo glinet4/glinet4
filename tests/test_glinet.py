@@ -23,7 +23,7 @@ load_dotenv()
 GLINET_HOST = os.environ.get("GLINET_HOST", "http://192.168.8.1")
 GLINET_USERNAME = os.environ.get("GLINET_USERNAME", "root")
 GLINET_PASSWORD = os.environ.get("GLINET_PASSWORD")
-PERFORM_DISTRUPTIVE_TESTS = os.environ.get("GLINET_RUN_DISRUPTIVE", "").lower() in (
+PERFORM_DISRUPTIVE_TESTS = os.environ.get("GLINET_RUN_DISRUPTIVE", "").lower() in (
     "1",
     "true",
     "yes",
@@ -39,6 +39,11 @@ pytestmark = [
     ),
     pytest.mark.asyncio(loop_scope="module"),
 ]
+
+disruptive = pytest.mark.skipif(
+    not PERFORM_DISRUPTIVE_TESTS,
+    reason="Disruptive live tests are disabled; set GLINET_RUN_DISRUPTIVE=1 to run them.",
+)
 
 router = GLinet(base_url=f"{GLINET_HOST}/rpc")
 
@@ -85,7 +90,6 @@ async def test_login() -> None:
     assert not router.logged_in
     await router.login(GLINET_USERNAME, GLINET_PASSWORD)
     assert router.logged_in
-    print(router.sid)
 
 
 async def test_router_info() -> None:
@@ -147,12 +151,10 @@ async def test_wifi_ifaces_get() -> None:
         assert "key" in iface
 
 
+@disruptive
 async def test_wifi_ifaces_set_enabled() -> None:
     """Test enabling/disabling a WiFi interface."""
 
-    assert PERFORM_DISTRUPTIVE_TESTS, (
-        "Disruptive tests are disabled, set PERFORM_DISTRUPTIVE_TESTS to True to run this test."
-    )
     wifi_ifaces = await router.wifi_ifaces_get()
     iface = next(iter(wifi_ifaces.values()))
     iface_enabled = iface.get("enabled")
@@ -203,11 +205,9 @@ async def test_wifi_mlo_config() -> None:
     assert isinstance(config, dict)
 
 
+@disruptive
 async def test_client_block_unblock() -> None:
     """Block then unblock a client, verifying the blocked flag round-trips."""
-    assert PERFORM_DISTRUPTIVE_TESTS, (
-        "Disruptive tests are disabled, set PERFORM_DISTRUPTIVE_TESTS to True to run this test."
-    )
     clients = await router.list_all_clients()
     target = next(
         (c for c in clients["clients"] if c.get("online") and not c.get("blocked")),
@@ -247,11 +247,9 @@ async def test_network_acceleration() -> None:
     assert accel["enable"] in [True, False]
 
 
+@disruptive
 async def test_flow_stats_enable_disable() -> None:
     """Enable then disable flow statistics, restoring the original state."""
-    assert PERFORM_DISTRUPTIVE_TESTS, (
-        "Disruptive tests are disabled, set PERFORM_DISTRUPTIVE_TESTS to True to run this test."
-    )
     base = await router.flow_stats_rule()
     if base["enable"]:
         pytest.skip("stats already enabled; not toggling to preserve state")
@@ -293,11 +291,9 @@ async def test_led_config() -> None:
     assert config["led_enable"] in [True, False]
 
 
+@disruptive
 async def test_led_set_enabled() -> None:
     """Test toggling the LEDs and restoring the original state."""
-    assert PERFORM_DISTRUPTIVE_TESTS, (
-        "Disruptive tests are disabled, set PERFORM_DISTRUPTIVE_TESTS to True to run this test."
-    )
     original = (await router.led_config())["led_enable"]
     await router.led_set_enabled(not original)
     assert (await router.led_config())["led_enable"] != original
@@ -485,11 +481,9 @@ async def test_wireguard_client_state() -> None:
         assert first_status["status"] in [0, 1, 2]
 
 
+@disruptive
 async def test_wireguard_start() -> None:
     """Test starting the WireGuard client."""
-    assert PERFORM_DISTRUPTIVE_TESTS, (
-        "Disruptive tests are disabled, set PERFORM_DISTRUPTIVE_TESTS to True to run this test."
-    )
 
     status_list = await router.wireguard_client_state()
     if status_list is None or len(status_list) == 0:
@@ -522,11 +516,9 @@ async def test_wireguard_start() -> None:
             pytest.fail("WireGuard client took too long to connect.")
 
 
+@disruptive
 async def test_wireguard_stop() -> None:
     """Test stopping the WireGuard client."""
-    assert PERFORM_DISTRUPTIVE_TESTS, (
-        "Disruptive tests are disabled, set PERFORM_DISTRUPTIVE_TESTS to True to run this test."
-    )
 
     info_response = await router.router_info()
     firmware_version = info_response["firmware_version"]
@@ -605,31 +597,25 @@ async def test_tailscale_exit_node_list() -> None:
     assert isinstance(nodes, list)
 
 
+@disruptive
 async def test_tailscale_start() -> None:
     """Test starting Tailscale."""
-    assert PERFORM_DISTRUPTIVE_TESTS, (
-        "Disruptive tests are disabled, set PERFORM_DISTRUPTIVE_TESTS to True to run this test."
-    )
     result = await router.tailscale_start()
     print(result)
     assert result in [True, False]
 
 
+@disruptive
 async def test_tailscale_stop() -> None:
     """Test stopping Tailscale."""
-    assert PERFORM_DISTRUPTIVE_TESTS, (
-        "Disruptive tests are disabled, set PERFORM_DISTRUPTIVE_TESTS to True to run this test."
-    )
     result = await router.tailscale_stop()
     print(result)
     assert result in [True, False]
 
 
+@disruptive
 async def test_router_reboot() -> None:
     """Test rebooting the router."""
-    assert PERFORM_DISTRUPTIVE_TESTS, (
-        "Disruptive tests are disabled, set PERFORM_DISTRUPTIVE_TESTS to True to run this test."
-    )
     response = await router.router_reboot()
     print(response)
     print("waiting `15s` for router to shutdown")
