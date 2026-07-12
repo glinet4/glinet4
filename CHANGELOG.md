@@ -3,6 +3,11 @@
 ## [0.1.1](https://github.com/glinet4/glinet4/compare/v0.1.0...v0.1.1) (2026-07-12)
 
 
+### Bug Fixes
+
+* import NetworkAcceleration so the `__all__` export resolves — `from glinet4 import NetworkAcceleration` raised ImportError in 0.1.0 ([#1](https://github.com/glinet4/glinet4/issues/1)) ([38ea8da](https://github.com/glinet4/glinet4/commit/38ea8dabe6acaa398b0b98d1e78a1a2f5f5a9f22))
+
+
 ### Documentation
 
 * PyPI/license badges, project footer, GL.iNet branding ([b965916](https://github.com/glinet4/glinet4/commit/b965916a143a043ff70240d5bebc8babd7a3d733))
