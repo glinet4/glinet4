@@ -12,6 +12,7 @@ from glinet4.error_handling import (
     FeatureConflictError,
     NonZeroResponse,
     TokenError,
+    UnexpectedResponse,
     UnsuccessfulRequest,
     raise_for_status,
 )
@@ -50,11 +51,11 @@ class FakeResponse:
         pytest.param(
             200, None, ValueError("bad json"), UnsuccessfulRequest, id="json-parse-failure"
         ),
-        # Current behavior raises the builtin ConnectionError for an envelope with neither
-        # "result" nor "error". Phase 2 will change this to a library-specific exception type;
-        # this test pins today's behavior so that migration is deliberate.
+        # Phase 2, Task 3: an envelope with neither "result" nor "error" is a shape
+        # violation, not a JSON-RPC error the router intentionally reported, so it
+        # raises the library-specific UnexpectedResponse rather than a builtin.
         pytest.param(
-            200, {"unexpected": "shape"}, None, ConnectionError, id="missing-result-and-error"
+            200, {"unexpected": "shape"}, None, UnexpectedResponse, id="missing-result-and-error"
         ),
         pytest.param(
             200,
@@ -219,3 +220,20 @@ async def test_result_list_returns_unchanged():
     # list as "result"; the body-level err_code check must not choke on that.
     response = FakeResponse(status=200, json_body={"result": [1, 2, 3]})
     assert await raise_for_status(response) == [1, 2, 3]
+
+
+# --- Phase 2, Task 3: exception taxonomy consolidation ------------------------
+
+
+async def test_unexpected_response_is_caught_by_except_api_client_error():
+    # Hierarchy contract: UnexpectedResponse must be a genuine APIClientError
+    # subclass so `except APIClientError` remains a complete safety net.
+    response = FakeResponse(status=200, json_body={"unexpected": "shape"})
+    with pytest.raises(APIClientError):
+        await raise_for_status(response)
+
+
+async def test_unexpected_response_message_includes_the_envelope():
+    response = FakeResponse(status=200, json_body={"unexpected": "shape"})
+    with pytest.raises(UnexpectedResponse, match="unexpected"):
+        await raise_for_status(response)

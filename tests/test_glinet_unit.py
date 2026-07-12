@@ -8,6 +8,7 @@ from semver import Version
 
 from glinet4._transport import GLinetTransport
 from glinet4.enums import TailscaleConnection
+from glinet4.error_handling import RetryExhausted, UnexpectedResponse
 from glinet4.glinet import GLinet
 
 
@@ -82,13 +83,13 @@ async def test_router_info_tolerates_unparseable_version(glinet):
 
 async def test_wireguard_client_state_raises_clear_error_on_unparseable_firmware(glinet):
     glinet._transport.request.return_value = {"firmware_version": "not-a-version"}
-    with pytest.raises(ValueError, match="not-a-version"):
+    with pytest.raises(UnexpectedResponse, match="not-a-version"):
         await glinet.wireguard_client_state()
 
 
 async def test_wireguard_client_start_raises_clear_error_on_unparseable_firmware(glinet):
     glinet._transport.request.return_value = {"firmware_version": "not-a-version"}
-    with pytest.raises(ValueError, match="not-a-version"):
+    with pytest.raises(UnexpectedResponse, match="not-a-version"):
         await glinet.wireguard_client_start(group_id=1, peer_or_tunnel_id=2)
 
 
@@ -198,7 +199,7 @@ async def test_tailscale_start_connecting_then_connected(glinet, monkeypatch):
 
 async def test_tailscale_start_aborts_when_login_required(glinet):
     glinet._transport.request.return_value = {"status": 1}
-    with pytest.raises(ConnectionAbortedError):
+    with pytest.raises(RetryExhausted):
         await glinet.tailscale_start()
 
 
@@ -220,6 +221,12 @@ async def test_tailscale_stop_disables_when_connected(glinet):
 async def test_tailscale_stop_already_disconnected_status_zero_returns_true(glinet):
     glinet._transport.request.return_value = {"status": 0}
     assert await glinet.tailscale_stop() is True
+
+
+async def test_tailscale_stop_aborts_when_login_required(glinet):
+    glinet._transport.request.return_value = {"status": 1}
+    with pytest.raises(RetryExhausted):
+        await glinet.tailscale_stop()
 
 
 async def test_wifi_status_extracts_radio_list(glinet):

@@ -22,7 +22,12 @@ from uplink import (
     timeout,
 )
 
-from .error_handling import APIClientError, AuthenticationError, raise_for_status
+from .error_handling import (
+    APIClientError,
+    AuthenticationError,
+    UnexpectedResponse,
+    raise_for_status,
+)
 
 
 class GLinetTransport(Consumer):  # type: ignore[misc]
@@ -100,7 +105,19 @@ class GLinetTransport(Consumer):  # type: ignore[misc]
         return False
 
     async def login(self, username: str, password: str) -> None:
-        """Log in via challenge-response and store the session id."""
+        """Log in via challenge-response and store the session id.
+
+        Raises :class:`~glinet4.error_handling.AuthenticationError` (or a
+        subclass, such as :class:`~glinet4.error_handling.TokenError`)
+        unchanged, exactly as reported by the router -- including its
+        message, so e.g. a -32000 catalog description survives to the
+        caller. Raises :class:`~glinet4.error_handling.UnexpectedResponse`
+        if the challenge response is missing an expected key, or if the
+        router requested a hashing algorithm this client doesn't implement
+        (with the original exception as ``__cause__``). Any other
+        :class:`~glinet4.error_handling.APIClientError` is re-raised wrapped
+        with the failing type named in the message.
+        """
 
         def _compute_hash(  # pylint: disable=too-many-arguments,too-many-positional-arguments
             alg: int,
@@ -144,13 +161,22 @@ class GLinetTransport(Consumer):  # type: ignore[misc]
             if "sid" in res:
                 self.sid = res["sid"]
                 self._logged_in = True
+        except AuthenticationError:
+            # Let AuthenticationError (and subclasses like TokenError) pass through
+            # unwrapped: re-wrapping with a generic message discarded the router's
+            # own error text, including the -32000 catalog description.
+            raise
         except (KeyError, ValueError) as e:
-            raise KeyError("Parameter Exception:") from e
-        except AuthenticationError as e:
-            raise AuthenticationError("Authentication failed during login") from e
+            # A missing challenge-response key (KeyError) or a hashing/unsupported-
+            # algorithm failure (ValueError from _compute_hash) both mean the router
+            # didn't give us what login() needed -- an envelope/shape violation, not
+            # a programmer error, so surface it as such rather than as a builtin.
+            raise UnexpectedResponse(
+                f"Unexpected response from the router during login: {e}"
+            ) from e
         except APIClientError as e:
             raise APIClientError(
-                f"An unexpected error of type {type(e).__name__} has occurred during login"
+                f"An unexpected error of type {type(e).__name__} has occurred during login: {e}"
             ) from e
 
     @property
