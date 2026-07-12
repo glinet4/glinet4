@@ -13,6 +13,7 @@ from ._types import (
     FlowStatsRule,
     LedConfig,
     MloConfig,
+    NetworkAcceleration,
     NetworkInterfaceStatus,
     PortForwardRule,
     RouterInfo,

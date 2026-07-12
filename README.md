@@ -22,10 +22,12 @@ GL.iNet routers are built on [OpenWRT](https://openwrt.org/) and expose a local 
 1. Clone the repo
 2. Ensure you have Python 3.11 or greater (`python3 -V`) and install [uv](https://docs.astral.sh/uv/).
 3. `uv sync` — creates the in-project `.venv` and installs the runtime + dev dependencies.
-4. The tests run against a **live router**, so copy `.env.example` to `.env` and set at least
+4. `uvx prek install` — sets up the git pre-commit hooks (ruff, mypy, file hygiene).
+   Run them on demand with `uvx prek run --all-files`.
+5. The tests run against a **live router**, so copy `.env.example` to `.env` and set at least
    `GLINET_PASSWORD` (and `GLINET_HOST` if not `192.168.8.1`). Without it the live suite is skipped.
-5. `uv run pytest -s` to see responses.
-6. Build with `uv build`. Releases publish to PyPI automatically on a GitHub Release (trusted publishing).
+6. `uv run pytest -s` to see responses.
+7. Build with `uv build`. Releases publish to PyPI automatically on a GitHub Release (trusted publishing).
 
 ## Dev setup alongside HA & the Custom component
 1. Clone the repo into the vscode `/workspaces/` dir
