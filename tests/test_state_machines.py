@@ -228,12 +228,17 @@ async def test_router_load_returns_load_info(glinet):
     )
 
 
-async def test_router_mac_returns_factory_mac_string(glinet):
-    glinet._transport.request.return_value = {"factory_mac": "AA:BB:CC:DD:EE:FF"}
+async def test_router_mac_returns_mac_string(glinet):
+    # fw >= 4.9.0 removed the dedicated macclone RPC; router_mac now shares
+    # router_info's RPC pair (system get_info) and reshapes its "mac" field.
+    glinet._transport.request.return_value = {
+        "firmware_version": "4.9.0",
+        "mac": "AA:BB:CC:DD:EE:FF",
+    }
     mac = await glinet.router_mac()
     assert mac == "AA:BB:CC:DD:EE:FF"
     glinet._transport.build_sid_payload.assert_called_once_with(
-        "call", ["macclone", "get_mac"], "SID"
+        "call", ["system", "get_info"], "SID"
     )
 
 
@@ -245,9 +250,9 @@ async def test_router_reboot_sends_delay_and_discards_ack(glinet):
     )
 
 
-async def test_router_mac_missing_factory_mac_raises(glinet):
-    glinet._transport.request.return_value = {"imitate_mac": "AA:BB:CC:DD:EE:FF"}
-    with pytest.raises(UnexpectedResponse, match="factory_mac"):
+async def test_router_mac_missing_mac_raises(glinet):
+    glinet._transport.request.return_value = {"firmware_version": "4.9.0"}
+    with pytest.raises(UnexpectedResponse, match="mac"):
         await glinet.router_mac()
 
 

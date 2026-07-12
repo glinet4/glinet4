@@ -125,11 +125,13 @@ async def test_router_load() -> None:
 
 
 async def test_router_mac() -> None:
-    """Test retrieving the router's MAC address."""
-    try:
-        response = await router.router_mac()
-    except NonZeroResponse:
-        pytest.skip("macclone is not enabled on this router")
+    """Test retrieving the router's MAC address.
+
+    fw >= 4.9.0 removed the dedicated macclone RPC (this used to skip here
+    with NonZeroResponse on such firmware); router_mac now derives the MAC
+    from system get_info instead, so it should succeed unconditionally.
+    """
+    response = await router.router_mac()
     assert isinstance(response, str)
     assert response.count(":") == 5
     print(response)
