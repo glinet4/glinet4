@@ -159,15 +159,51 @@ async def test_login_sha512_sets_sid(transport):
     assert transport.logged_in is True
 
 
-async def test_login_wraps_unexpected_api_client_error_with_type_name(transport):
-    # Phase 2, Task 3 reworked login()'s exception handling: any APIClientError
-    # that isn't an AuthenticationError (and wasn't a KeyError/ValueError from
-    # _compute_hash) falls through to the generic wrap branch, which must name
-    # the original exception's type and keep its message, not discard it.
+async def test_login_lets_unsuccessful_request_pass_through_unwrapped(transport):
+    # Reviewer-found defect (glinet4-ha PR #25): login() used to catch any
+    # remaining APIClientError subclass and re-raise it flattened into the
+    # bare parent class ("An unexpected error of type X has occurred..."),
+    # discarding the concrete type. That broke callers' `except
+    # UnsuccessfulRequest` mapping (e.g. HA's cannot_connect) for exactly the
+    # case it matters most: a dropped connection during login. The concrete
+    # subclass must now survive unchanged, exactly like AuthenticationError
+    # already does above.
     transport.request = AsyncMock(side_effect=UnsuccessfulRequest("network hiccup"))
-    with pytest.raises(APIClientError, match="UnsuccessfulRequest") as exc_info:
+    with pytest.raises(UnsuccessfulRequest, match="network hiccup"):
         await transport.login("root", "pw")
-    assert "network hiccup" in str(exc_info.value)
+
+
+async def test_login_lets_dropped_connection_surface_as_unsuccessful_request():
+    # The reviewer's live repro, one layer deeper than the mock above: a
+    # dropped connection during the challenge/get_sid round trip raises
+    # aiohttp.ClientConnectionError, which _post (not this test) wraps into
+    # UnsuccessfulRequest with the original preserved as __cause__. Before the
+    # fix, login()'s generic except-clause re-flattened that into a bare
+    # APIClientError, so `except UnsuccessfulRequest` around glinet4.login()
+    # never fired downstream.
+    connection_error = aiohttp.ClientConnectionError("Connection reset by peer")
+    session = MagicMock(spec=aiohttp.ClientSession)
+    session.request = AsyncMock(side_effect=connection_error)
+    dropped_transport = GLinetTransport(session=session, base_url="http://192.168.8.1/rpc")
+
+    with pytest.raises(UnsuccessfulRequest) as exc_info:
+        await dropped_transport.login("root", "pw")
+
+    assert exc_info.value.__cause__ is connection_error
+
+
+async def test_login_lets_unexpected_response_from_malformed_challenge_pass_through_unwrapped():
+    # Another APIClientError subclass, exercised through the real
+    # raise_for_status path rather than a mocked transport.request: a 200
+    # challenge response with neither "result" nor "error" is an
+    # envelope-shape violation, so raise_for_status raises UnexpectedResponse
+    # directly. login() must let it through unflattened too, not just the two
+    # subclasses above.
+    session = _wire_session(FakeAiohttpResponse(200, {"nonsense": True}))
+    malformed_transport = GLinetTransport(session=session, base_url="http://192.168.8.1/rpc")
+
+    with pytest.raises(UnexpectedResponse, match="nonsense"):
+        await malformed_transport.login("root", "pw")
 
 
 # --- Phase 2, Task 4: session lifecycle -----------------------------------
