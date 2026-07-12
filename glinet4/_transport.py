@@ -224,6 +224,10 @@ class GLinetTransport:
         with the failing type named in the message.
         """
 
+        # The digest algorithms here (md5/sha256/sha512 over user:cipher:nonce)
+        # are dictated by the router's challenge response (`alg`/`hash_method`)
+        # -- this is the firmware's wire handshake, not password storage. The
+        # password is salted unix-crypt'd (rounds=5000) before this step.
         def _compute_hash(  # pylint: disable=too-many-arguments,too-many-positional-arguments
             alg: int,
             salt: str,
