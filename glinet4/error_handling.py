@@ -4,6 +4,8 @@ from typing import Any
 
 from aiohttp import ClientResponse
 
+from .error_codes import ERROR_CODES
+
 
 class APIClientError(Exception):
     """Base class for all exceptions raised by the API client"""
@@ -23,6 +25,14 @@ class AuthenticationError(NonZeroResponse):
 
 class TokenError(AuthenticationError):
     """Should be raised when the token is invalid or expired"""
+
+
+def _catalog_suffix(code: int) -> str:
+    """Return ' - <description>' for a known GL.iNet error code, or '' if the code is unknown."""
+    description = ERROR_CODES.get(str(code))
+    if description is None:
+        return ""
+    return f" - {description}"
 
 
 async def raise_for_status(response: ClientResponse) -> Any:
@@ -51,14 +61,18 @@ async def raise_for_status(response: ClientResponse) -> Any:
 
         code = res["error"].get("code", 0)
         if code == -1:
-            raise TokenError(f"Request returned error code -1 ({res['error']['message']})")
+            raise TokenError(
+                f"Request returned error code -1 ({res['error']['message']}){_catalog_suffix(code)}"
+            )
         if code == -32000:
             raise AuthenticationError(
                 f"Request returned error code -32000 ({res['error']['message']})"
+                f"{_catalog_suffix(code)}"
             )
         if code < 0:
             raise NonZeroResponse(
                 f"Request returned error code {code} with message: {res['error']['message']}"
+                f"{_catalog_suffix(code)}"
             )
 
         return res

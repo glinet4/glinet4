@@ -55,6 +55,43 @@ async def test_router_info_delegates_and_caches_firmware(glinet):
     glinet._transport.request.assert_awaited_once()
 
 
+async def test_router_info_accepts_3_segment_semver(glinet):
+    glinet._transport.request.return_value = {"firmware_version": "4.9.0"}
+    await glinet.router_info()
+    assert glinet._firmware_version == Version.parse("4.9.0")
+
+
+async def test_router_info_coerces_4_segment_version(glinet):
+    # Some firmware reports a 4th build segment; coerce to the first three.
+    glinet._transport.request.return_value = {"firmware_version": "4.7.0.1"}
+    await glinet.router_info()
+    assert glinet._firmware_version == Version(4, 7, 0)
+
+
+async def test_router_info_tolerates_unparseable_version(glinet):
+    # router_info() must succeed even when the version is garbage; only a
+    # caller that actually needs the parsed version should raise.
+    glinet._transport.request.return_value = {
+        "model": "mt6000",
+        "firmware_version": "not-a-version",
+    }
+    res = await glinet.router_info()
+    assert res["model"] == "mt6000"
+    assert glinet._firmware_version is None
+
+
+async def test_wireguard_client_state_raises_clear_error_on_unparseable_firmware(glinet):
+    glinet._transport.request.return_value = {"firmware_version": "not-a-version"}
+    with pytest.raises(ValueError, match="not-a-version"):
+        await glinet.wireguard_client_state()
+
+
+async def test_wireguard_client_start_raises_clear_error_on_unparseable_firmware(glinet):
+    glinet._transport.request.return_value = {"firmware_version": "not-a-version"}
+    with pytest.raises(ValueError, match="not-a-version"):
+        await glinet.wireguard_client_start(group_id=1, peer_or_tunnel_id=2)
+
+
 async def test_router_get_status_redacts_wifi_passwords(glinet):
     glinet._transport.request.return_value = {
         "system": {"uptime": 1},

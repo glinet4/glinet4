@@ -1,0 +1,209 @@
+{
+  "acl": [
+    "get_acl_list",
+    "get_group_list"
+  ],
+  "adguardhome": [
+    "get_config"
+  ],
+  "bark": [
+    "get_config",
+    "get_status"
+  ],
+  "black_white_list": [
+    "get_config"
+  ],
+  "cable": [
+    "get_config",
+    "get_status"
+  ],
+  "clients": [
+    "get_list",
+    "get_status"
+  ],
+  "cloud": [
+    "get_config"
+  ],
+  "ddns": [
+    "get_config",
+    "get_status"
+  ],
+  "dns": [
+    "get_config",
+    "get_host",
+    "get_info"
+  ],
+  "edgerouter": [
+    "get_config",
+    "get_status"
+  ],
+  "firewall": [
+    "get_acl_rule_list",
+    "get_acl_zone_list",
+    "get_dmz",
+    "get_port_forward_list",
+    "get_rule_list",
+    "get_wan_access",
+    "get_zone_list"
+  ],
+  "flow_statistics": [
+    "get_app_flow_statistics",
+    "get_flow_statistics",
+    "get_statistics_rule",
+    "get_top_app_flow_statistics"
+  ],
+  "igmp": [
+    "get_config"
+  ],
+  "ipv6": [
+    "get_ipv6"
+  ],
+  "kmwan": [
+    "get_config",
+    "get_status"
+  ],
+  "lan": [
+    "get_config_list",
+    "get_static_bind_list"
+  ],
+  "led": [
+    "get_config"
+  ],
+  "logread": [
+    "get_crash_log",
+    "get_kernel_log",
+    "get_system_log"
+  ],
+  "modem": [
+    "get_debug_msg",
+    "get_sms_list",
+    "get_traffic_config"
+  ],
+  "mptun": [
+    "get_config",
+    "get_status"
+  ],
+  "nas-web": [
+    "get_disk_list",
+    "get_file_list",
+    "get_nas_ser",
+    "get_proto_config",
+    "get_share_list",
+    "get_status",
+    "get_user_list"
+  ],
+  "netmode": [
+    "get_mode"
+  ],
+  "network": [
+    "check_wan_cable",
+    "get_arp_list"
+  ],
+  "ovpn-client": [
+    "check_config",
+    "get_all_config_list",
+    "get_config_list",
+    "get_group_list",
+    "get_recommend_config",
+    "get_third_config"
+  ],
+  "ovpn-server": [
+    "get_config",
+    "get_route_list",
+    "get_setting",
+    "get_status",
+    "get_user_list"
+  ],
+  "parental-control": [
+    "get_config"
+  ],
+  "plugins": [
+    "get_config",
+    "get_list",
+    "get_package_info",
+    "get_repository_status"
+  ],
+  "qos": [
+    "get_client_list",
+    "get_config",
+    "get_device_group"
+  ],
+  "repeater": [
+    "get_config",
+    "get_saved_ap_list",
+    "get_status"
+  ],
+  "rtty": [
+    "get_config"
+  ],
+  "s2s": [
+    "get_status"
+  ],
+  "sms-forward": [
+    "get_config"
+  ],
+  "sqm": [
+    "get_config"
+  ],
+  "system": [
+    "disk_info",
+    "get_httpd_mem_status",
+    "get_info",
+    "get_load",
+    "get_security_policy",
+    "get_status",
+    "get_timezone_config",
+    "get_unixtime"
+  ],
+  "tailscale": [
+    "get_config",
+    "get_status"
+  ],
+  "tethering": [
+    "get_config",
+    "get_status"
+  ],
+  "tor": [
+    "get_config",
+    "get_status"
+  ],
+  "ui": [
+    "check_initialized",
+    "get_lang",
+    "get_menu_list",
+    "load_locales"
+  ],
+  "upgrade": [
+    "check_firmware_local",
+    "get_config",
+    "get_online_upgrade_status"
+  ],
+  "vpn-client": [
+    "get_status",
+    "get_tunnel"
+  ],
+  "wg-client": [
+    "check_config",
+    "get_all_config_list",
+    "get_config_list",
+    "get_group_list",
+    "get_recommend_config",
+    "get_third_config"
+  ],
+  "wg-server": [
+    "get_config",
+    "get_peer_list",
+    "get_route_list",
+    "get_setting",
+    "get_status"
+  ],
+  "wifi": [
+    "get_config",
+    "get_mlo_config",
+    "get_status"
+  ],
+  "zerotier": [
+    "get_config",
+    "get_status"
+  ]
+}

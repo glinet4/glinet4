@@ -8,6 +8,7 @@ connection state machines) but performs no I/O itself.
 """
 
 import asyncio
+import re
 from typing import Any, cast
 
 import pydantic
@@ -58,7 +59,36 @@ from .error_handling import APIClientError
 _ = pydantic.BaseModel
 
 # typical base url http://192.168.8.1/rpc
+# Version(4, 8, 0, 0)'s 4th positional arg is `prerelease`, not a 4th version
+# segment, so this is semver prerelease "4.8.0-0" -- below every real 4.8.0
+# release. That's intentional: "4.8.0-beta" firmware also compares >= this,
+# so beta firmware is routed to the new vpn-client API too.
 NEW_VPN_CLIENT_VERSION = Version(4, 8, 0, 0)
+
+_FIRMWARE_VERSION_PREFIX = re.compile(r"^(\d+)(?:\.(\d+))?(?:\.(\d+))?")
+
+
+def _parse_firmware_version(raw: str) -> Version | None:
+    """Parse a firmware version string, tolerating non-semver formats.
+
+    Most firmware reports plain 3-segment semver ("4.9.0"), but some report a
+    4th build segment ("4.7.0.1"), which strict semver rejects outright.
+    Coerce by keeping only the leading numeric major[.minor[.patch]]
+    segments and re-parsing those; if the string has no leading numeric
+    segment at all, give up and return None rather than raising.
+    """
+    try:
+        return Version.parse(raw)
+    except ValueError:
+        pass
+    match = _FIRMWARE_VERSION_PREFIX.match(raw)
+    if match is None:
+        return None
+    coerced = ".".join(group for group in match.groups() if group is not None)
+    try:
+        return Version.parse(coerced, optional_minor_and_patch=True)
+    except ValueError:
+        return None
 
 
 class GLinet:
@@ -72,6 +102,7 @@ class GLinet:
     ) -> None:
         self._transport = GLinetTransport(sid=sid, client=client, **kwargs)
         self._firmware_version: Version | None = None
+        self._firmware_version_raw: str | None = None
 
     # --- session / auth delegation -------------------------------------------
 
@@ -125,14 +156,22 @@ class GLinet:
     # --- raw API methods (one per RPC) ---------------------------------------
 
     async def router_info(self) -> RouterInfo:
-        """Retrieve router information; caches the firmware version."""
+        """Retrieve router information; caches the firmware version.
+
+        Tolerates non-semver firmware version strings (see
+        :func:`_parse_firmware_version`): this call never raises for an
+        unparseable version, it just caches ``None``. Only callers that
+        genuinely need a comparable version (the WireGuard client-API gate,
+        via :meth:`_require_firmware_version`) raise, with the original
+        string in the message.
+        """
         response: RouterInfo = await self._transport.request(
             self._payload("call", ["system", "get_info"])
         )
-        if "firmware_version" in response:
-            self._firmware_version = Version.parse(response["firmware_version"])
-        else:
+        if "firmware_version" not in response:
             raise ValueError("No firmware version found in router info")
+        self._firmware_version_raw = response["firmware_version"]
+        self._firmware_version = _parse_firmware_version(response["firmware_version"])
         return response
 
     async def router_get_status(self) -> RouterStatus:
@@ -358,7 +397,7 @@ class GLinet:
         )
         if isinstance(result, dict) and "ping_result" in result:
             return "bytes from" in result["ping_result"]
-        return not result == []
+        return bool(result != [])
 
     async def connected_to_internet(self) -> Any:
         """Return the upstream/edge-router connectivity status."""
@@ -519,6 +558,25 @@ class GLinet:
 
     # --- VPN: WireGuard (firmware-version routing is protocol knowledge) ------
 
+    async def _require_firmware_version(self) -> Version:
+        """Return the cached firmware version, fetching it via router_info if needed.
+
+        Raises with the original firmware string if it could not be parsed
+        as a version -- unlike :meth:`router_info`, the WireGuard client-API
+        routing below genuinely needs a comparable version, so this is the
+        one place that raises for an unparseable firmware string.
+        """
+        if self._firmware_version is None:
+            await self.router_info()
+        firmware_version = self._firmware_version
+        if firmware_version is None:
+            raise ValueError(
+                "Cannot determine the WireGuard client API (legacy wg-client "
+                "vs. new vpn-client) because the router's firmware version "
+                f"{self._firmware_version_raw!r} could not be parsed."
+            )
+        return firmware_version
+
     async def wireguard_client_list(self) -> list[WireguardClientConfig]:
         """List configured WireGuard client peers."""
         response: dict[str, Any] = await self._transport.request(
@@ -540,14 +598,10 @@ class GLinet:
 
     async def wireguard_client_state(self) -> list[WireguardClientStatus]:
         """Return WireGuard client status, normalised to a list."""
-        if self._firmware_version is None:
-            await self.router_info()
-        assert self._firmware_version is not None
-        target_call = (
-            "vpn-client" if self._firmware_version >= NEW_VPN_CLIENT_VERSION else "wg-client"
-        )
+        firmware_version = await self._require_firmware_version()
+        target_call = "vpn-client" if firmware_version >= NEW_VPN_CLIENT_VERSION else "wg-client"
         response = await self._transport.request(self._payload("call", [target_call, "get_status"]))
-        if self._firmware_version < NEW_VPN_CLIENT_VERSION:
+        if firmware_version < NEW_VPN_CLIENT_VERSION:
             return [response]
         result: list[WireguardClientStatus] = response.get("status_list", [])
         return result
@@ -564,10 +618,8 @@ class GLinet:
         self, group_id: int, peer_or_tunnel_id: int, enabled: bool
     ) -> Any:
         """Enable/disable a WireGuard client, routing by firmware version."""
-        if self._firmware_version is None:
-            await self.router_info()
-        assert self._firmware_version is not None
-        if self._firmware_version >= NEW_VPN_CLIENT_VERSION:
+        firmware_version = await self._require_firmware_version()
+        if firmware_version >= NEW_VPN_CLIENT_VERSION:
             tunnel_id = peer_or_tunnel_id
             return await self._transport.request(
                 self._payload(
@@ -668,9 +720,7 @@ class GLinet:
                 return True
         except APIClientError:
             return False
-        if await self._tailscale_get_config() is False:
-            return False
-        return True
+        return await self._tailscale_get_config() is not False
 
     async def tailscale_start(self, depth: int = 0) -> bool:
         """Start tailscale, retrying until connected."""

@@ -12,3 +12,9 @@
 
 * PyPI/license badges, project footer, GL.iNet branding ([b965916](https://github.com/glinet4/glinet4/commit/b965916a143a043ff70240d5bebc8babd7a3d733))
 * theme-aware logo header ([762d216](https://github.com/glinet4/glinet4/commit/762d2168b740fdcc2dadba09f943dc3a641feca0))
+
+## 0.1.0 (2026-07-11)
+
+Initial PyPI release. `glinet4` is a rebrand/fork of
+[HarvsG/gli4py](https://github.com/HarvsG/gli4py) (GPL-3.0); see
+[NOTICE](NOTICE) for full attribution.
