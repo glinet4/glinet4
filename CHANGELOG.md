@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/glinet4/glinet4/compare/v0.1.1...v0.1.2) (2026-07-12)
+
+
+### Bug Fixes
+
+* phase 1 tech-debt quick wins — error surfacing, firmware tolerance, guardrails ([#20](https://github.com/glinet4/glinet4/issues/20)) ([e83f77c](https://github.com/glinet4/glinet4/commit/e83f77cf3cd468eab8c5765c1a228e0ab9129daf))
+
 ## [0.1.1](https://github.com/glinet4/glinet4/compare/v0.1.0...v0.1.1) (2026-07-12)
 
 
