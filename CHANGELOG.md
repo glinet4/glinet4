@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.1](https://github.com/glinet4/glinet4/compare/v0.2.0...v0.2.1) (2026-07-12)
+
+
+### Bug Fixes
+
+* derive router_mac from system info — fw 4.9 removed the macclone RPC ([#28](https://github.com/glinet4/glinet4/issues/28)) ([0f7c78f](https://github.com/glinet4/glinet4/commit/0f7c78f7e66e12a528b2c159f9a329ce0d4d6f1e))
+* let login() propagate APIClientError subclasses unwrapped ([#30](https://github.com/glinet4/glinet4/issues/30)) ([e845b76](https://github.com/glinet4/glinet4/commit/e845b76a4eed6e4ae5bc51914ae5bbddf750c6a9))
+
 ## [0.2.0](https://github.com/glinet4/glinet4/compare/v0.1.2...v0.2.0) (2026-07-12)
 
 
