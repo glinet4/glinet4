@@ -12,6 +12,7 @@ from glinet4.error_handling import (
     AuthenticationError,
     TokenError,
     UnexpectedResponse,
+    UnsuccessfulRequest,
 )
 
 
@@ -133,6 +134,35 @@ async def test_login_lets_authentication_error_message_survive_including_catalog
     )
     with pytest.raises(AuthenticationError, match="Permission denied"):
         await transport.login("root", "pw")
+
+
+# --- Phase 2, Task 5: sha512 login branch + the generic wrap branch -------
+
+
+async def test_login_sha512_sets_sid(transport):
+    # alg=6 exercises _compute_hash's sha512_crypt cipher-password branch;
+    # hash-method="sha512" exercises the outer hashlib.sha512 branch -- both
+    # previously untested (only md5/sha256 had coverage).
+    transport.request = AsyncMock(
+        side_effect=[
+            {"alg": 6, "salt": "abc", "nonce": "xyz", "hash-method": "sha512"},
+            {"sid": "S3"},
+        ]
+    )
+    await transport.login("root", "pw")
+    assert transport.sid == "S3"
+    assert transport.logged_in is True
+
+
+async def test_login_wraps_unexpected_api_client_error_with_type_name(transport):
+    # Phase 2, Task 3 reworked login()'s exception handling: any APIClientError
+    # that isn't an AuthenticationError (and wasn't a KeyError/ValueError from
+    # _compute_hash) falls through to the generic wrap branch, which must name
+    # the original exception's type and keep its message, not discard it.
+    transport.request = AsyncMock(side_effect=UnsuccessfulRequest("network hiccup"))
+    with pytest.raises(APIClientError, match="UnsuccessfulRequest") as exc_info:
+        await transport.login("root", "pw")
+    assert "network hiccup" in str(exc_info.value)
 
 
 # --- Phase 2, Task 4: session lifecycle -----------------------------------
