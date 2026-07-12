@@ -35,16 +35,18 @@ class ServicesRoutes:
         return result
 
     async def flow_stats_set_enabled(
-        self, enabled: bool, stat_type: str = "app", period: str = "day"
-    ) -> Any:
+        self, *, enabled: bool, stat_type: str = "app", period: str = "day"
+    ) -> None:
         """Enable or disable flow-statistics collection.
 
         Note: on this hardware the DPI accounting that fills per-app statistics
         rides on NAT acceleration, which conflicts with QoS/SQM. Enabling the
         rule starts the collector, but populated app data also requires
         :meth:`network_acceleration` to be on (see ``network_acceleration_set``).
+        The router's acknowledgement carries nothing useful and is discarded;
+        confirm the change via :meth:`flow_stats_rule`.
         """
-        return await self._transport.request(
+        await self._transport.request(
             self._payload(
                 "call",
                 [
@@ -69,9 +71,9 @@ class ServicesRoutes:
             return wrapped
         return response if isinstance(response, list) else []
 
-    async def flow_stats_clear(self) -> Any:
-        """Clear all collected flow statistics."""
-        return await self._transport.request(
+    async def flow_stats_clear(self) -> None:
+        """Clear all collected flow statistics (the ack carries nothing useful)."""
+        await self._transport.request(
             self._payload("call", ["flow_statistics", "clear_statistics", {}])
         )
 
@@ -82,7 +84,7 @@ class ServicesRoutes:
         )
         return result
 
-    async def network_acceleration_set(self, enabled: bool) -> Any:
+    async def network_acceleration_set(self, *, enabled: bool) -> None:
         """Enable or disable NAT acceleration.
 
         The router rejects the change with JSON-RPC error code -1 when a
@@ -92,9 +94,11 @@ class ServicesRoutes:
         :class:`~glinet4.error_handling.NonZeroResponse`) rather than
         :class:`~glinet4.error_handling.TokenError` when the router's message
         indicates a conflict, so callers don't loop on re-authentication.
+        The router's acknowledgement carries nothing useful and is discarded;
+        confirm the change via :meth:`network_acceleration`.
         """
         current = await self.network_acceleration()
-        return await self._transport.request(
+        await self._transport.request(
             self._payload(
                 "call",
                 [
@@ -137,13 +141,15 @@ class ServicesRoutes:
         )
         return result
 
-    async def led_set_enabled(self, enabled: bool) -> Any:
-        """Enable or disable the router LEDs, preserving other LED settings."""
+    async def led_set_enabled(self, *, enabled: bool) -> None:
+        """Enable or disable the router LEDs, preserving other LED settings.
+
+        The router's acknowledgement carries nothing useful and is discarded;
+        confirm the change via :meth:`led_config`.
+        """
         current: dict[str, Any] = dict(await self.led_config())
         new_config = current | {"led_enable": enabled}
-        return await self._transport.request(
-            self._payload("call", ["led", "set_config", new_config])
-        )
+        await self._transport.request(self._payload("call", ["led", "set_config", new_config]))
 
     async def firmware_check_online(self) -> FirmwareCheck:
         """Check online for a firmware update; ``new_*`` keys appear when one exists."""

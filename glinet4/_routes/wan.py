@@ -38,16 +38,26 @@ class WanRoutes:
             return "bytes from" in result["ping_result"]
         return bool(result != [])
 
-    async def connected_to_internet(self) -> Any:
-        """Return the upstream/edge-router connectivity status.
+    async def connected_to_internet(self) -> bool:
+        """Return True when the router's upstream probe reports a detection.
+
+        Wraps ``edgerouter get_status``, mapping its ``detected`` field to a
+        bool (non-zero means detected). Caveat: the RPC is the router's own
+        upstream/edge-router probe, not an end-to-end reachability check --
+        a fw 4.9.0 Flint 2 with a working public WAN has been observed
+        reporting ``detected: 0`` -- so prefer :meth:`ping` when a positive
+        internet-reachability answer is needed.
 
         Routed through the long timeout: the router-side connectivity probe
         can block for multiple seconds, the same class of delay
         :meth:`ping`'s ``diag ping`` RPC exhibits.
         """
-        return await self._transport.request_long_timeout(
+        response = await self._transport.request_long_timeout(
             self._payload("call", ["edgerouter", "get_status"])
         )
+        if isinstance(response, dict):
+            return bool(response.get("detected"))
+        return False
 
     async def wan_cable_state(self) -> WanCableState:
         """Return WAN cable presence and macclone flags."""

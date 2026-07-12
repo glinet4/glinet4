@@ -48,13 +48,13 @@ class TailscaleRoutes:
             return False
         return config
 
-    async def _tailscale_set_config(self, config_updates: dict[str, Any]) -> Any:
-        """Merge updates into the tailscale config and apply them."""
+    async def _tailscale_set_config(self, config_updates: dict[str, Any]) -> None:
+        """Merge updates into the tailscale config and apply them (ack discarded)."""
         current_config: dict[str, Any] = await self._transport.request(
             self._payload("call", ["tailscale", "get_config"])
         )
         new_config = current_config | config_updates
-        return await self._transport.request(
+        await self._transport.request(
             self._payload("call", ["tailscale", "set_config", new_config])
         )
 
@@ -97,16 +97,18 @@ class TailscaleRoutes:
         result: list[TailscaleExitNode] = response if isinstance(response, list) else []
         return result
 
-    async def tailscale_set_exit_node(self, ip: str | None) -> Any:
+    async def tailscale_set_exit_node(self, *, exit_node_ip: str | None = None) -> None:
         """Route the router's traffic through a tailnet exit node.
 
-        ``ip`` must come from :meth:`tailscale_exit_node_list`; ``None``
-        clears the exit node (the firmware clears on an empty string). The
-        firmware rejects setting an exit node while ``run_exit_node`` is
-        enabled, and applying the change re-runs ``tailscale up`` on the
-        router, which briefly interrupts tailscale traffic.
+        ``exit_node_ip`` must come from :meth:`tailscale_exit_node_list`;
+        ``None`` (the default) clears the exit node (the firmware clears on
+        an empty string). The firmware rejects setting an exit node while
+        ``run_exit_node`` is enabled, and applying the change re-runs
+        ``tailscale up`` on the router, which briefly interrupts tailscale
+        traffic. The router's acknowledgement carries nothing useful and is
+        discarded.
         """
-        return await self._tailscale_set_config({"exit_node_ip": ip or ""})
+        await self._tailscale_set_config({"exit_node_ip": exit_node_ip or ""})
 
     async def tailscale_configured(self) -> bool:
         """Return True if tailscale is configured."""
@@ -117,11 +119,11 @@ class TailscaleRoutes:
             return False
         return await self._tailscale_get_config() is not False
 
-    async def tailscale_start(self, depth: int = 0) -> bool:
+    async def tailscale_start(self) -> bool:
         """Start tailscale, retrying until connected.
 
         Raises :class:`~glinet4.error_handling.RetryExhausted` if the
-        recursion-depth guard is hit, if the device is still not connected
+        retry-depth guard is hit, if the device is still not connected
         after the "connecting" wait, or if tailscale login/authorisation is
         required (retrying will not help; the caller must complete login via
         :meth:`tailscale_auth_url` first). Raises
@@ -129,6 +131,10 @@ class TailscaleRoutes:
         status outside the known :class:`~glinet4.enums.TailscaleConnection`
         values.
         """
+        return await self._tailscale_start(0)
+
+    async def _tailscale_start(self, depth: int) -> bool:
+        """Recursive worker for :meth:`tailscale_start`; ``depth`` guards the retries."""
         if depth > 10:
             raise RetryExhausted("Tailscale attempted to connect 10 times with no success")
         response: TailscaleStatus | list[Any] = await self._tailscale_status()
@@ -137,7 +143,7 @@ class TailscaleRoutes:
             if depth > 0:
                 await asyncio.sleep(0.3)
             depth += 1
-            return await self.tailscale_start(depth)
+            return await self._tailscale_start(depth)
         assert isinstance(response, dict)
         status: int = response.get("status", 0)
         if status == 3:
@@ -161,14 +167,18 @@ class TailscaleRoutes:
             )
         raise UnexpectedResponse(f"Unknown connection status: {status}")
 
-    async def tailscale_stop(self, depth: int = 0) -> bool:
+    async def tailscale_stop(self) -> bool:
         """Stop tailscale, retrying until disconnected.
 
         Raises :class:`~glinet4.error_handling.RetryExhausted` if the
-        recursion-depth guard is hit, or if tailscale login/authorisation is
+        retry-depth guard is hit, or if tailscale login/authorisation is
         required (retrying will not help; the caller must complete login via
         :meth:`tailscale_auth_url` first).
         """
+        return await self._tailscale_stop(0)
+
+    async def _tailscale_stop(self, depth: int) -> bool:
+        """Recursive worker for :meth:`tailscale_stop`; ``depth`` guards the retries."""
         if depth > 10:
             raise RetryExhausted("Tailscale attempted to disconnect 10 times with no success")
         response: TailscaleStatus | list[Any] = await self._tailscale_status()
@@ -181,7 +191,7 @@ class TailscaleRoutes:
             if depth > 0:
                 await asyncio.sleep(0.3)
             depth += 1
-            return await self.tailscale_stop(depth)
+            return await self._tailscale_stop(depth)
         if status in [1, 2]:
             # Not literal exhaustion: login-required is a state no retry can fix (see RetryExhausted docstring).
             raise RetryExhausted(

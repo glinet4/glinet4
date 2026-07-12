@@ -102,7 +102,7 @@ async def test_wireguard_client_start_raises_clear_error_on_unparseable_firmware
         await glinet.wireguard_client_start(group_id=1, peer_or_tunnel_id=2)
 
 
-async def test_router_get_status_redacts_wifi_passwords(glinet):
+async def test_router_status_redacts_wifi_passwords(glinet):
     glinet._transport.request.return_value = {
         "system": {"uptime": 1},
         "wifi": [
@@ -110,7 +110,7 @@ async def test_router_get_status_redacts_wifi_passwords(glinet):
             {"ssid": "y", "passwd": "secret2"},
         ],
     }
-    res = await glinet.router_get_status()
+    res = await glinet.router_status()
     assert res["wifi"][0]["passwd"] is None
     assert res["wifi"][1]["passwd"] is None
 
@@ -128,23 +128,46 @@ async def test_connected_clients_filters_offline_and_keys_by_mac(glinet):
     assert clients["AA"] == {"mac": "AA", "online": True}
 
 
-async def test_wifi_ifaces_get_reshapes_and_redacts_by_default(glinet):
+async def test_wifi_ifaces_reshapes_and_redacts_by_default(glinet):
     glinet._transport.request.return_value = {
         "res": [
             {"ifaces": [{"name": "wifi2g", "ssid": "S", "enabled": True, "key": "secret"}]},
         ]
     }
-    ifaces = await glinet.wifi_ifaces_get()
+    ifaces = await glinet.wifi_ifaces()
     assert ifaces["wifi2g"]["key"] is None
     assert ifaces["wifi2g"]["ssid"] == "S"
 
 
-async def test_wifi_ifaces_get_exposes_keys_when_not_redacted(glinet):
+async def test_wifi_ifaces_exposes_keys_when_not_redacted(glinet):
     glinet._transport.request.return_value = {
         "res": [{"ifaces": [{"name": "wifi2g", "key": "secret"}]}]
     }
-    ifaces = await glinet.wifi_ifaces_get(redact_keys=False)
+    ifaces = await glinet.wifi_ifaces(redact_keys=False)
     assert ifaces["wifi2g"]["key"] == "secret"
+
+
+async def test_wifi_iface_set_enabled_sends_config_change(glinet):
+    glinet._transport.request.side_effect = [
+        {"res": [{"ifaces": [{"name": "wifi2g", "key": "k"}]}]},  # wifi get_config
+        {},  # wifi set_config ack (discarded)
+    ]
+    result = await glinet.wifi_iface_set_enabled("wifi2g", enabled=False)
+    assert result is None
+    last_call = glinet._transport.build_sid_payload.call_args_list[-1]
+    assert last_call.args == (
+        "call",
+        ["wifi", "set_config", {"enabled": False, "iface_name": "wifi2g"}],
+        "SID",
+    )
+
+
+async def test_wifi_iface_set_enabled_unknown_iface_raises(glinet):
+    glinet._transport.request.return_value = {"res": [{"ifaces": [{"name": "wifi2g", "key": "k"}]}]}
+    with pytest.raises(UnexpectedResponse, match="iface_name"):
+        await glinet.wifi_iface_set_enabled("no-such-iface", enabled=True)
+    # Only the get_config read may have happened; no write for an unknown iface.
+    glinet._transport.request.assert_awaited_once()
 
 
 async def test_wireguard_client_state_new_firmware_returns_status_list(glinet):
@@ -323,7 +346,7 @@ async def test_tailscale_set_exit_node_merges_ip_into_config(glinet):
         {"enabled": True, "run_exit_node": False},
         {},
     ]
-    await glinet.tailscale_set_exit_node("100.64.0.2")
+    await glinet.tailscale_set_exit_node(exit_node_ip="100.64.0.2")
     last_call = glinet._transport.build_sid_payload.call_args_list[-1]
     assert last_call.args == (
         "call",
@@ -336,12 +359,12 @@ async def test_tailscale_set_exit_node_merges_ip_into_config(glinet):
     )
 
 
-async def test_tailscale_set_exit_node_none_clears_with_empty_string(glinet):
+async def test_tailscale_set_exit_node_default_clears_with_empty_string(glinet):
     glinet._transport.request.side_effect = [
         {"enabled": True, "exit_node_ip": "100.64.0.2"},
         {},
     ]
-    await glinet.tailscale_set_exit_node(None)
+    await glinet.tailscale_set_exit_node()
     last_call = glinet._transport.build_sid_payload.call_args_list[-1]
     assert last_call.args[1][2]["exit_node_ip"] == ""
 
@@ -354,7 +377,7 @@ async def test_tailscale_connection_state_handles_status_missing(glinet):
 
 async def test_client_set_blocked_true_adds_to_black_list(glinet):
     glinet._transport.request.return_value = []
-    await glinet.client_set_blocked("AA:BB:CC:DD:EE:FF", True)
+    await glinet.client_set_blocked("AA:BB:CC:DD:EE:FF", blocked=True)
     glinet._transport.build_sid_payload.assert_called_once_with(
         "call",
         [
@@ -368,7 +391,7 @@ async def test_client_set_blocked_true_adds_to_black_list(glinet):
 
 async def test_client_set_blocked_false_removes_from_black_list(glinet):
     glinet._transport.request.return_value = []
-    await glinet.client_set_blocked("AA:BB:CC:DD:EE:FF", False)
+    await glinet.client_set_blocked("AA:BB:CC:DD:EE:FF", blocked=False)
     glinet._transport.build_sid_payload.assert_called_once_with(
         "call",
         [
@@ -402,7 +425,7 @@ async def test_flow_stats_rule_returns_state(glinet):
 
 async def test_flow_stats_set_enabled_sends_full_rule(glinet):
     glinet._transport.request.return_value = []
-    await glinet.flow_stats_set_enabled(True)
+    await glinet.flow_stats_set_enabled(enabled=True)
     glinet._transport.build_sid_payload.assert_called_once_with(
         "call",
         [
@@ -416,7 +439,7 @@ async def test_flow_stats_set_enabled_sends_full_rule(glinet):
 
 async def test_flow_stats_set_enabled_passes_type_and_time(glinet):
     glinet._transport.request.return_value = []
-    await glinet.flow_stats_set_enabled(False, stat_type="client", period="month")
+    await glinet.flow_stats_set_enabled(enabled=False, stat_type="client", period="month")
     glinet._transport.build_sid_payload.assert_called_once_with(
         "call",
         [
@@ -513,7 +536,7 @@ async def test_led_set_enabled_merges_current_config(glinet):
         {"led_enable": False},
         {},
     ]
-    await glinet.led_set_enabled(True)
+    await glinet.led_set_enabled(enabled=True)
     last_call = glinet._transport.build_sid_payload.call_args_list[-1]
     assert last_call.args == ("call", ["led", "set_config", {"led_enable": True}], "SID")
 

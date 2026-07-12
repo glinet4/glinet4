@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any
 
 from semver import Version
 
-from .._types import DiskInfo, RouterInfo, RouterStatus, TimezoneConfig, UsbInfoEntry
+from .._types import DiskInfo, RouterInfo, RouterLoad, RouterStatus, TimezoneConfig, UsbInfoEntry
 from ..error_handling import UnexpectedResponse
 
 if TYPE_CHECKING:
@@ -70,7 +70,7 @@ class SystemRoutes:
         self._firmware_version = _parse_firmware_version(response["firmware_version"])
         return response
 
-    async def router_get_status(self) -> RouterStatus:
+    async def router_status(self) -> RouterStatus:
         """Retrieve router status, with wifi passwords redacted."""
         response: RouterStatus = await self._transport.request(
             self._payload("call", ["system", "get_status"])
@@ -80,9 +80,12 @@ class SystemRoutes:
                 response["wifi"][i]["passwd"] = None
         return response
 
-    async def router_get_load(self) -> Any:
-        """Retrieve router load information."""
-        return await self._transport.request(self._payload("call", ["system", "get_load"]))
+    async def router_load(self) -> RouterLoad:
+        """Return the router's load averages (1/5/15 min) and memory usage in bytes."""
+        result: RouterLoad = await self._transport.request(
+            self._payload("call", ["system", "get_load"])
+        )
+        return result
 
     async def router_unixtime(self) -> int:
         """Return the router's current unix time."""
@@ -113,12 +116,22 @@ class SystemRoutes:
         )
         return result
 
-    async def router_mac(self) -> Any:
-        """Retrieve the router's MAC address."""
-        return await self._transport.request(self._payload("call", ["macclone", "get_mac"]))
+    async def router_mac(self) -> str:
+        """Return the router's factory MAC address.
 
-    async def router_reboot(self, delay: int = 0) -> Any:
-        """Reboot the router."""
-        return await self._transport.request(
-            self._payload("call", ["system", "reboot", {"delay": delay}])
-        )
+        Wraps ``macclone get_mac``, returning its ``factory_mac`` value.
+        Raises :class:`~glinet4.error_handling.UnexpectedResponse` if the
+        response carries no ``factory_mac``. Note the RPC itself is absent on
+        some devices/firmware (JSON-RPC -32601, observed on a fw 4.9.0
+        Flint 2), which surfaces as
+        :class:`~glinet4.error_handling.NonZeroResponse` from the transport.
+        """
+        response = await self._transport.request(self._payload("call", ["macclone", "get_mac"]))
+        mac = response.get("factory_mac") if isinstance(response, dict) else None
+        if not isinstance(mac, str):
+            raise UnexpectedResponse("No factory_mac found in macclone get_mac response")
+        return mac
+
+    async def router_reboot(self, delay: int = 0) -> None:
+        """Reboot the router after ``delay`` seconds (the ack carries nothing useful)."""
+        await self._transport.request(self._payload("call", ["system", "reboot", {"delay": delay}]))

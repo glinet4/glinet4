@@ -102,9 +102,9 @@ async def test_router_info() -> None:
     print(response)
 
 
-async def test_router_get_status() -> None:
+async def test_router_status() -> None:
     """Test retrieving router status."""
-    response = await router.router_get_status()
+    response = await router.router_status()
     assert "service" in response
     assert "network" in response
     assert "system" in response
@@ -115,9 +115,9 @@ async def test_router_get_status() -> None:
     print(response)
 
 
-async def test_router_get_load() -> None:
+async def test_router_load() -> None:
     """Test retrieving router load information."""
-    response = await router.router_get_load()
+    response = await router.router_load()
     assert "load_average" in response
     assert "memory_free" in response
     assert "memory_total" in response
@@ -130,7 +130,8 @@ async def test_router_mac() -> None:
         response = await router.router_mac()
     except NonZeroResponse:
         pytest.skip("macclone is not enabled on this router")
-    assert "factory_mac" in response
+    assert isinstance(response, str)
+    assert response.count(":") == 5
     print(response)
 
 
@@ -141,9 +142,9 @@ async def test_connected_clients() -> None:
     assert len(clients) > 0
 
 
-async def test_wifi_ifaces_get() -> None:
+async def test_wifi_ifaces() -> None:
     """Test retrieving WiFi interfaces."""
-    wifi_ifaces = await router.wifi_ifaces_get()
+    wifi_ifaces = await router.wifi_ifaces()
     print(wifi_ifaces)
     for iface in wifi_ifaces.values():
         assert "enabled" in iface
@@ -156,26 +157,25 @@ async def test_wifi_ifaces_get() -> None:
 async def test_wifi_ifaces_set_enabled() -> None:
     """Test enabling/disabling a WiFi interface."""
 
-    wifi_ifaces = await router.wifi_ifaces_get()
+    wifi_ifaces = await router.wifi_ifaces()
     iface = next(iter(wifi_ifaces.values()))
     iface_enabled = iface.get("enabled")
 
-    response = await router.wifi_iface_set_enabled(iface.get("name"), not iface_enabled)
-    print(response)
+    await router.wifi_iface_set_enabled(iface.get("name"), enabled=not iface_enabled)
     await asyncio.sleep(1)
 
-    wifi_ifaces2 = await router.wifi_ifaces_get()
+    wifi_ifaces2 = await router.wifi_ifaces()
     iface_enabled_after = wifi_ifaces2.get(iface.get("name")).get("enabled")
     assert iface_enabled_after != iface_enabled
 
 
 async def test_connected_to_internet() -> None:
-    """Test checking if the router is connected to the internet."""
+    """Test the upstream-detection probe returns a bool."""
     response = await router.connected_to_internet()
     print(response)
-    assert response["detected"] in [0, 1, 2, 3]
-    if response["detected"] in [1, 2]:
-        assert "ip" in response
+    # The edgerouter probe's detected flag is device/firmware dependent (a
+    # fw 4.9.0 Flint 2 with working WAN reports 0), so only the type is pinned.
+    assert isinstance(response, bool)
 
 
 async def test_ping() -> None:
@@ -209,7 +209,7 @@ async def test_wifi_mlo_config() -> None:
 @disruptive
 async def test_client_block_unblock() -> None:
     """Block then unblock a client, verifying the blocked flag round-trips."""
-    clients = await router.list_all_clients()
+    clients = await router.clients_list()
     target = next(
         (c for c in clients["clients"] if c.get("online") and not c.get("blocked")),
         None,
@@ -218,13 +218,23 @@ async def test_client_block_unblock() -> None:
         pytest.skip("no unblocked online client to test against")
     mac = target["mac"]
     try:
-        await router.client_set_blocked(mac, True)
+        await router.client_set_blocked(mac, blocked=True)
         await asyncio.sleep(5)
         assert mac in await router.blocked_client_macs()
     finally:
-        await router.client_set_blocked(mac, False)
+        await router.client_set_blocked(mac, blocked=False)
         await asyncio.sleep(5)
         assert mac not in await router.blocked_client_macs()
+
+
+async def test_static_clients_list() -> None:
+    """Test retrieving static DHCP bindings (read-only)."""
+    bindings = await router.static_clients_list()
+    print(bindings)
+    assert isinstance(bindings, list)
+    for binding in bindings:
+        assert "mac" in binding
+        assert "ip" in binding
 
 
 async def test_flow_stats_rule() -> None:
@@ -255,11 +265,15 @@ async def test_flow_stats_enable_disable() -> None:
     if base["enable"]:
         pytest.skip("stats already enabled; not toggling to preserve state")
     try:
-        await router.flow_stats_set_enabled(True, base["type"], base["time"])
+        await router.flow_stats_set_enabled(
+            enabled=True, stat_type=base["type"], period=base["time"]
+        )
         await asyncio.sleep(2)
         assert (await router.flow_stats_rule())["enable"] is True
     finally:
-        await router.flow_stats_set_enabled(False, base["type"], base["time"])
+        await router.flow_stats_set_enabled(
+            enabled=False, stat_type=base["type"], period=base["time"]
+        )
         await asyncio.sleep(2)
         assert (await router.flow_stats_rule())["enable"] is False
 
@@ -296,9 +310,9 @@ async def test_led_config() -> None:
 async def test_led_set_enabled() -> None:
     """Test toggling the LEDs and restoring the original state."""
     original = (await router.led_config())["led_enable"]
-    await router.led_set_enabled(not original)
+    await router.led_set_enabled(enabled=not original)
     assert (await router.led_config())["led_enable"] != original
-    await router.led_set_enabled(original)
+    await router.led_set_enabled(enabled=original)
     assert (await router.led_config())["led_enable"] == original
 
 
@@ -496,7 +510,9 @@ async def test_wireguard_start() -> None:
     peer_id = first_status["peer_id"]
     tunnel_id = first_status.get("tunnel_id")
 
-    result = await router.wireguard_client_start(group_id, tunnel_id or peer_id)
+    result = await router.wireguard_client_start(
+        group_id=group_id, peer_or_tunnel_id=tunnel_id or peer_id
+    )
     print("RESULT: ", result)
     assert result["tunnel_id"] == tunnel_id
 

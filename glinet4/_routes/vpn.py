@@ -57,22 +57,38 @@ class VpnRoutes:
         result: list[WireguardClientStatus] = response.get("status_list", [])
         return result
 
-    async def wireguard_client_start(self, group_id: int, peer_or_tunnel_id: int) -> Any:
-        """Start a WireGuard client."""
-        return await self._wireguard_set_client_enabled(group_id, peer_or_tunnel_id, True)
+    async def wireguard_client_start(
+        self, *, group_id: int, peer_or_tunnel_id: int
+    ) -> dict[str, Any]:
+        """Start a WireGuard client.
 
-    async def wireguard_client_stop(self, peer_or_tunnel_id: int) -> Any:
-        """Stop a WireGuard client."""
-        return await self._wireguard_set_client_enabled(-1, peer_or_tunnel_id, False)
+        Returns the router's acknowledgement as-is (hence ``dict[str, Any]``):
+        on firmware >= :data:`NEW_VPN_CLIENT_VERSION` the ``vpn-client
+        set_tunnel`` reply echoes the tunnel state (e.g. ``{"tunnel_id": ...,
+        "enabled": ...}``); the legacy ``wg-client start`` reply shape is
+        undocumented, so no tighter type is promised.
+        """
+        return await self._wireguard_set_client_enabled(group_id, peer_or_tunnel_id, enabled=True)
+
+    async def wireguard_client_stop(self, peer_or_tunnel_id: int) -> dict[str, Any]:
+        """Stop a WireGuard client.
+
+        Returns the router's acknowledgement as-is (hence ``dict[str, Any]``):
+        on firmware >= :data:`NEW_VPN_CLIENT_VERSION` the ``vpn-client
+        set_tunnel`` reply echoes the tunnel state; the legacy ``wg-client
+        stop`` reply shape is undocumented, so no tighter type is promised.
+        """
+        return await self._wireguard_set_client_enabled(-1, peer_or_tunnel_id, enabled=False)
 
     async def _wireguard_set_client_enabled(
-        self, group_id: int, peer_or_tunnel_id: int, enabled: bool
-    ) -> Any:
+        self, group_id: int, peer_or_tunnel_id: int, *, enabled: bool
+    ) -> dict[str, Any]:
         """Enable/disable a WireGuard client, routing by firmware version."""
         firmware_version = await self._require_firmware_version()
+        response: dict[str, Any]
         if firmware_version >= NEW_VPN_CLIENT_VERSION:
             tunnel_id = peer_or_tunnel_id
-            return await self._transport.request(
+            response = await self._transport.request(
                 self._payload(
                     "call",
                     [
@@ -82,12 +98,15 @@ class VpnRoutes:
                     ],
                 )
             )
+            return response
         peer_id = peer_or_tunnel_id
         if enabled:
-            return await self._transport.request(
+            response = await self._transport.request(
                 self._payload(
                     "call",
                     ["wg-client", "start", {"group_id": group_id, "peer_id": peer_id}],
                 )
             )
-        return await self._transport.request(self._payload("call", ["wg-client", "stop"]))
+            return response
+        response = await self._transport.request(self._payload("call", ["wg-client", "stop"]))
+        return response
