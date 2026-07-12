@@ -9,8 +9,11 @@ package that performs I/O — the API layer (``glinet4.glinet.GLinet``) composes
 
 import asyncio
 import hashlib
+from types import TracebackType
 from typing import Any
 
+import aiohttp
+import pydantic
 from passlib.hash import md5_crypt, sha256_crypt, sha512_crypt
 from uplink import (
     AiohttpClient,
@@ -29,23 +32,82 @@ from .error_handling import (
     raise_for_status,
 )
 
+# Force Pydantic to resolve its lazy imports to prevent HA event loop blocking.
+# Lives here (not glinet.py, moved in Phase 2 Task 4) because it exists solely for
+# uplink's benefit: uplink's default converter registry (uplink.converters) pulls
+# in PydanticConverter unconditionally, so constructing a Consumer -- i.e. this
+# transport -- is what actually needs pydantic warmed up, not the API layer above.
+_ = pydantic.BaseModel
+
 
 class GLinetTransport(Consumer):  # type: ignore[misc]
     """JSON-RPC transport for the GL.iNet API.
 
     Owns the uplink client, request methods, ``sid`` state and the login flow.
+
+    Session ownership: pass ``session`` (a plain :class:`aiohttp.ClientSession`)
+    to have requests routed through a session you manage yourself -- this
+    transport will never close it. Passed neither ``session`` nor the legacy
+    ``client``, the transport creates and owns its own session (built lazily by
+    uplink, exactly as before this parameter existed) and :meth:`close` will
+    close it. Passing ``client`` directly (kept for backward compatibility;
+    scheduled for removal in the Phase 3 transport rewrite) is also treated as
+    caller-owned, since the caller is the one who caused that client -- and
+    whatever session it wraps -- to exist.
     """
 
     def __init__(
         self,
         sid: str | None = None,
+        session: aiohttp.ClientSession | None = None,
         client: AiohttpClient | None = None,
         **kwargs: Any,
     ) -> None:
         self.sid: str | None = sid
         self._logged_in: bool = sid is not None
-        client = client or AiohttpClient()
+        self._owns_session: bool = session is None and client is None
+        self._closed: bool = False
+        if client is None:
+            client = AiohttpClient(session=session)
+        self._client: AiohttpClient = client
         super().__init__(client=client, **kwargs)
+
+    async def close(self) -> None:
+        """Close the aiohttp session this transport owns, if any.
+
+        Idempotent. Never closes a caller-supplied session (passed via
+        ``session=`` or the legacy ``client=``) -- ownership belongs to
+        whoever caused the session to exist, per the class docstring.
+
+        When this transport owns its session, uplink builds it lazily (see
+        :class:`uplink.AiohttpClient`): before the first request, the
+        underlying ``aiohttp.ClientSession`` hasn't been created yet, so
+        there is nothing to close, and this returns without error. After the
+        first request materializes it, this locates and closes it.
+        """
+        if self._closed or not self._owns_session:
+            return
+        self._closed = True
+        session = getattr(self._client, "_session", None)
+        if isinstance(session, aiohttp.ClientSession):
+            await session.close()
+            # uplink's own AiohttpClient.__del__ would otherwise try to close
+            # this same session again at garbage-collection time -- exactly
+            # the failure mode this method exists to let callers avoid, since
+            # by then the event loop it needs is typically gone (RuntimeError
+            # on py3.12+). Tell it we've already handled the session.
+            setattr(self._client, "_auto_created_session", False)  # noqa: B010
+
+    async def __aenter__(self) -> "GLinetTransport":
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        await self.close()
 
     @staticmethod
     def build_sid_payload(method: str, params: list[Any], sid: str | None = None) -> dict[str, Any]:

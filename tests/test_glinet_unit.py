@@ -28,6 +28,40 @@ def test_construction_preserves_public_surface():
     assert g.sid is None
 
 
+# --- Phase 2, Task 4: session lifecycle -----------------------------------
+
+
+def test_positional_base_url_constructs():
+    # Phase 2, Task 4: base_url is now the explicit first positional parameter
+    # (previously it silently bound to `sid` and requests would go nowhere).
+    g = GLinet("http://192.168.8.1/rpc")
+    assert g._transport.session.base_url == "http://192.168.8.1/rpc"
+
+
+async def test_async_context_manager_delegates_close_to_transport():
+    g = GLinet(base_url="http://192.168.8.1/rpc")
+    g._transport.close = AsyncMock()
+    async with g as ctx:
+        assert ctx is g
+    g._transport.close.assert_awaited_once()
+
+
+async def test_async_context_manager_does_not_swallow_exceptions():
+    g = GLinet(base_url="http://192.168.8.1/rpc")
+    g._transport.close = AsyncMock()
+    with pytest.raises(ValueError, match="boom"):
+        async with g:
+            raise ValueError("boom")
+    g._transport.close.assert_awaited_once()
+
+
+async def test_close_delegates_to_transport():
+    g = GLinet(base_url="http://192.168.8.1/rpc")
+    g._transport.close = AsyncMock()
+    await g.close()
+    g._transport.close.assert_awaited_once()
+
+
 def test_gen_sid_payload_shim_forwards_non_mutating():
     # The shim must forward to the transport builder and not mutate the caller's list.
     params = ["system", "get_info"]

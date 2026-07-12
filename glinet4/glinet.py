@@ -9,9 +9,10 @@ connection state machines) but performs no I/O itself.
 
 import asyncio
 import re
+from types import TracebackType
 from typing import Any, cast
 
-import pydantic
+import aiohttp
 from semver import Version
 from uplink import AiohttpClient
 
@@ -55,9 +56,6 @@ from ._types import (
 )
 from .error_handling import APIClientError, RetryExhausted, UnexpectedResponse
 
-# Force Pydantic to resolve its lazy imports to prevent HA event loop blocking
-_ = pydantic.BaseModel
-
 # typical base url http://192.168.8.1/rpc
 # Version(4, 8, 0, 0)'s 4th positional arg is `prerelease`, not a 4th version
 # segment, so this is semver prerelease "4.8.0-0" -- below every real 4.8.0
@@ -92,17 +90,51 @@ def _parse_firmware_version(raw: str) -> Version | None:
 
 
 class GLinet:
-    """A Python client for the GL.iNet API (API/protocol layer)."""
+    """A Python client for the GL.iNet API (API/protocol layer).
+
+    Supports use as an async context manager, which closes the underlying
+    session on exit::
+
+        async with GLinet("http://192.168.8.1/rpc") as router:
+            await router.login("root", "password")
+            ...
+
+    Pass ``session`` to route requests through an ``aiohttp.ClientSession``
+    you manage yourself -- ``GLinet`` will never close a session it didn't
+    create (see :meth:`close`).
+    """
 
     def __init__(
         self,
+        base_url: str,
         sid: str | None = None,
+        session: aiohttp.ClientSession | None = None,
         client: AiohttpClient | None = None,
         **kwargs: Any,
     ) -> None:
-        self._transport = GLinetTransport(sid=sid, client=client, **kwargs)
+        self._transport = GLinetTransport(
+            sid=sid, session=session, client=client, base_url=base_url, **kwargs
+        )
         self._firmware_version: Version | None = None
         self._firmware_version_raw: str | None = None
+
+    async def close(self) -> None:
+        """Close the session this client owns, if any (see :class:`GLinetTransport`).
+
+        Idempotent; never closes a caller-supplied ``session`` or ``client``.
+        """
+        await self._transport.close()
+
+    async def __aenter__(self) -> "GLinet":
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        await self.close()
 
     # --- session / auth delegation -------------------------------------------
 

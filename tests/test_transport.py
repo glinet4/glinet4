@@ -1,8 +1,9 @@
 """Unit tests for the GLinet transport/auth layer (no hardware)."""
-# pylint: disable=missing-function-docstring,redefined-outer-name
+# pylint: disable=missing-function-docstring,redefined-outer-name,protected-access,unused-argument
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
+import aiohttp
 import pytest
 
 from glinet4._transport import GLinetTransport
@@ -132,3 +133,89 @@ async def test_login_lets_authentication_error_message_survive_including_catalog
     )
     with pytest.raises(AuthenticationError, match="Permission denied"):
         await transport.login("root", "pw")
+
+
+# --- Phase 2, Task 4: session lifecycle -----------------------------------
+
+
+class FakeAiohttpResponse:
+    """Minimal stand-in for aiohttp.ClientResponse, matching test_error_handling's pattern."""
+
+    def __init__(self, status: int, json_body: object) -> None:
+        self.status = status
+        self._json_body = json_body
+
+    async def json(self, content_type: object = None) -> object:
+        return self._json_body
+
+    async def text(self) -> str:
+        return ""
+
+
+def _mock_aiohttp_session() -> MagicMock:
+    """A MagicMock passing isinstance(x, aiohttp.ClientSession), with an async close()."""
+    session = MagicMock(spec=aiohttp.ClientSession)
+    session.close = AsyncMock()
+    return session
+
+
+async def test_close_is_safe_when_owned_session_never_materialized():
+    # No session/client given: uplink's own lazy factory hasn't built a real
+    # aiohttp.ClientSession yet (no request has been made). close() must be a
+    # safe no-op rather than erroring on the not-yet-instantiated placeholder.
+    transport = GLinetTransport(base_url="http://192.168.8.1/rpc")
+    await transport.close()
+
+
+async def test_close_closes_owned_session_once_materialized():
+    # Simulate uplink having lazily materialized the real session (as it would
+    # after the first request) by poking the internal client's `_session`.
+    transport = GLinetTransport(base_url="http://192.168.8.1/rpc")
+    mock_session = _mock_aiohttp_session()
+    transport._client._session = mock_session
+    await transport.close()
+    mock_session.close.assert_awaited_once()
+
+
+async def test_close_does_not_close_injected_session():
+    mock_session = _mock_aiohttp_session()
+    transport = GLinetTransport(session=mock_session, base_url="http://192.168.8.1/rpc")
+    await transport.close()
+    mock_session.close.assert_not_awaited()
+
+
+async def test_close_is_idempotent_on_owned_session():
+    transport = GLinetTransport(base_url="http://192.168.8.1/rpc")
+    mock_session = _mock_aiohttp_session()
+    transport._client._session = mock_session
+    await transport.close()
+    await transport.close()
+    mock_session.close.assert_awaited_once()
+
+
+async def test_async_context_manager_closes_owned_session():
+    mock_session = _mock_aiohttp_session()
+    async with GLinetTransport(base_url="http://192.168.8.1/rpc") as transport:
+        transport._client._session = mock_session
+    mock_session.close.assert_awaited_once()
+
+
+async def test_async_context_manager_does_not_swallow_exceptions():
+    mock_session = _mock_aiohttp_session()
+    transport = GLinetTransport(base_url="http://192.168.8.1/rpc")
+    transport._client._session = mock_session
+    with pytest.raises(ValueError, match="boom"):
+        async with transport:
+            raise ValueError("boom")
+    mock_session.close.assert_awaited_once()
+
+
+async def test_injected_session_routes_requests_through_it():
+    fake_session = MagicMock(spec=aiohttp.ClientSession)
+    fake_session.request = AsyncMock(
+        return_value=FakeAiohttpResponse(200, {"result": {"ok": True}})
+    )
+    transport = GLinetTransport(session=fake_session, base_url="http://192.168.8.1/rpc")
+    result = await transport.request({"method": "call", "jsonrpc": "2.0", "params": [], "id": 0})
+    assert result == {"ok": True}
+    fake_session.request.assert_awaited_once()
