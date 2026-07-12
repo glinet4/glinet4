@@ -40,11 +40,15 @@ from ._types import (
     ZerotierConfig,
 )
 from .enums import TailscaleConnection
+from .error_handling import FeatureConflictError, RetryExhausted, UnexpectedResponse
 from .glinet import GLinet
 
 __all__ = [
     "GLinet",
     "TailscaleConnection",
+    "FeatureConflictError",
+    "RetryExhausted",
+    "UnexpectedResponse",
     "AdguardConfig",
     "Client",
     "ClientsStatus",

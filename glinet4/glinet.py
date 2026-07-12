@@ -9,9 +9,10 @@ connection state machines) but performs no I/O itself.
 
 import asyncio
 import re
+from types import TracebackType
 from typing import Any, cast
 
-import pydantic
+import aiohttp
 from semver import Version
 from uplink import AiohttpClient
 
@@ -53,10 +54,7 @@ from ._types import (
     WireguardClientStatus,
     ZerotierConfig,
 )
-from .error_handling import APIClientError
-
-# Force Pydantic to resolve its lazy imports to prevent HA event loop blocking
-_ = pydantic.BaseModel
+from .error_handling import APIClientError, RetryExhausted, UnexpectedResponse
 
 # typical base url http://192.168.8.1/rpc
 # Version(4, 8, 0, 0)'s 4th positional arg is `prerelease`, not a 4th version
@@ -91,18 +89,69 @@ def _parse_firmware_version(raw: str) -> Version | None:
         return None
 
 
+def _tailscale_status_label(status: int) -> str:
+    """Resolve a raw tailscale status int to its enum name, if known.
+
+    Used when building exception messages from a freshly re-fetched status
+    that has not been validated against :class:`TailscaleConnection` yet
+    (e.g. future firmware reporting a status outside the known values).
+    ``TailscaleConnection(status)`` raises a builtin ``ValueError`` for
+    unknown members, which must never escape from inside an
+    ``APIClientError`` message-construction path -- fall back to the raw
+    int instead of letting that happen.
+    """
+    try:
+        return TailscaleConnection(status).name
+    except ValueError:
+        return str(status)
+
+
 class GLinet:
-    """A Python client for the GL.iNet API (API/protocol layer)."""
+    """A Python client for the GL.iNet API (API/protocol layer).
+
+    Supports use as an async context manager, which closes the underlying
+    session on exit::
+
+        async with GLinet("http://192.168.8.1/rpc") as router:
+            await router.login("root", "password")
+            ...
+
+    Pass ``session`` to route requests through an ``aiohttp.ClientSession``
+    you manage yourself -- ``GLinet`` will never close a session it didn't
+    create (see :meth:`close`).
+    """
 
     def __init__(
         self,
+        base_url: str,
         sid: str | None = None,
+        session: aiohttp.ClientSession | None = None,
         client: AiohttpClient | None = None,
         **kwargs: Any,
     ) -> None:
-        self._transport = GLinetTransport(sid=sid, client=client, **kwargs)
+        self._transport = GLinetTransport(
+            sid=sid, session=session, client=client, base_url=base_url, **kwargs
+        )
         self._firmware_version: Version | None = None
         self._firmware_version_raw: str | None = None
+
+    async def close(self) -> None:
+        """Close the session this client owns, if any (see :class:`GLinetTransport`).
+
+        Idempotent; never closes a caller-supplied ``session`` or ``client``.
+        """
+        await self._transport.close()
+
+    async def __aenter__(self) -> "GLinet":
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        await self.close()
 
     # --- session / auth delegation -------------------------------------------
 
@@ -160,16 +209,19 @@ class GLinet:
 
         Tolerates non-semver firmware version strings (see
         :func:`_parse_firmware_version`): this call never raises for an
-        unparseable version, it just caches ``None``. Only callers that
-        genuinely need a comparable version (the WireGuard client-API gate,
-        via :meth:`_require_firmware_version`) raise, with the original
-        string in the message.
+        unparseable version, it just caches ``None``. Raises
+        :class:`~glinet4.error_handling.UnexpectedResponse` only if the
+        response is missing the ``firmware_version`` key entirely (as
+        opposed to containing an unparseable value, which is tolerated).
+        Callers that genuinely need a comparable version (the WireGuard
+        client-API gate, via :meth:`_require_firmware_version`) raise
+        separately, with the original string in the message.
         """
         response: RouterInfo = await self._transport.request(
             self._payload("call", ["system", "get_info"])
         )
         if "firmware_version" not in response:
-            raise ValueError("No firmware version found in router info")
+            raise UnexpectedResponse("No firmware version found in router info")
         self._firmware_version_raw = response["firmware_version"]
         self._firmware_version = _parse_firmware_version(response["firmware_version"])
         return response
@@ -285,9 +337,13 @@ class GLinet:
     async def network_acceleration_set(self, enabled: bool) -> Any:
         """Enable or disable NAT acceleration.
 
-        The router rejects the change with ``err_code`` -1 and a message when a
-        conflicting feature (Parental Control / QoS / SQM / DPI) is active, so
-        callers should surface that message rather than assume success.
+        The router rejects the change with JSON-RPC error code -1 when a
+        conflicting feature (Parental Control / QoS / SQM / DPI) is active. That
+        code is shared with "not logged in" errors, so this raises
+        :class:`~glinet4.error_handling.FeatureConflictError` (a
+        :class:`~glinet4.error_handling.NonZeroResponse`) rather than
+        :class:`~glinet4.error_handling.TokenError` when the router's message
+        indicates a conflict, so callers don't loop on re-authentication.
         """
         current = await self.network_acceleration()
         return await self._transport.request(
@@ -550,27 +606,33 @@ class GLinet:
         }
 
     async def wifi_iface_set_enabled(self, iface_name: str, enabled: bool) -> Any:
-        """Enable/disable a wifi interface by name."""
+        """Enable/disable a wifi interface by name.
+
+        Raises :class:`~glinet4.error_handling.UnexpectedResponse` if
+        ``iface_name`` isn't among the interfaces the router currently
+        reports (see :meth:`wifi_ifaces_get`).
+        """
         ifaces = await self.wifi_ifaces_get()
         if iface_name in ifaces:
             return await self._wifi_config_set({"enabled": enabled, "iface_name": iface_name})
-        raise ValueError("iface_name does not exist")
+        raise UnexpectedResponse("iface_name does not exist")
 
     # --- VPN: WireGuard (firmware-version routing is protocol knowledge) ------
 
     async def _require_firmware_version(self) -> Version:
         """Return the cached firmware version, fetching it via router_info if needed.
 
-        Raises with the original firmware string if it could not be parsed
-        as a version -- unlike :meth:`router_info`, the WireGuard client-API
-        routing below genuinely needs a comparable version, so this is the
-        one place that raises for an unparseable firmware string.
+        Raises :class:`~glinet4.error_handling.UnexpectedResponse` with the
+        original firmware string if it could not be parsed as a version --
+        unlike :meth:`router_info`, the WireGuard client-API routing below
+        genuinely needs a comparable version, so this is the one place that
+        raises for an unparseable firmware string.
         """
         if self._firmware_version is None:
             await self.router_info()
         firmware_version = self._firmware_version
         if firmware_version is None:
-            raise ValueError(
+            raise UnexpectedResponse(
                 "Cannot determine the WireGuard client API (legacy wg-client "
                 "vs. new vpn-client) because the router's firmware version "
                 f"{self._firmware_version_raw!r} could not be parsed."
@@ -723,9 +785,19 @@ class GLinet:
         return await self._tailscale_get_config() is not False
 
     async def tailscale_start(self, depth: int = 0) -> bool:
-        """Start tailscale, retrying until connected."""
+        """Start tailscale, retrying until connected.
+
+        Raises :class:`~glinet4.error_handling.RetryExhausted` if the
+        recursion-depth guard is hit, if the device is still not connected
+        after the "connecting" wait, or if tailscale login/authorisation is
+        required (retrying will not help; the caller must complete login via
+        :meth:`tailscale_auth_url` first). Raises
+        :class:`~glinet4.error_handling.UnexpectedResponse` for a connection
+        status outside the known :class:`~glinet4.enums.TailscaleConnection`
+        values.
+        """
         if depth > 10:
-            raise ConnectionError("Tailscale attempted to connect 10 times with no success")
+            raise RetryExhausted("Tailscale attempted to connect 10 times with no success")
         response: TailscaleStatus | list[Any] = await self._tailscale_status()
         if isinstance(response, list) and response == []:
             await self._tailscale_set_config({"enabled": True})
@@ -743,22 +815,29 @@ class GLinet:
             assert isinstance(fresh, dict)
             status = fresh.get("status", 0)
             if status != 3:
-                raise ConnectionError(
+                raise RetryExhausted(
                     "Did not try to start tailscale as device reported 'Connecting' "
-                    f"and then 3 seconds later {TailscaleConnection(status).name}"
+                    f"and then 3 seconds later {_tailscale_status_label(status)}"
                 )
             return True
         if status in [1, 2]:
-            raise ConnectionAbortedError(
+            # Not literal exhaustion: login-required is a state no retry can fix (see RetryExhausted docstring).
+            raise RetryExhausted(
                 "Connection not attempted as authorisation is not complete, due to "
                 f"{TailscaleConnection(status).name}"
             )
-        raise ConnectionError(f"Unknown connection status: {status}")
+        raise UnexpectedResponse(f"Unknown connection status: {status}")
 
     async def tailscale_stop(self, depth: int = 0) -> bool:
-        """Stop tailscale, retrying until disconnected."""
+        """Stop tailscale, retrying until disconnected.
+
+        Raises :class:`~glinet4.error_handling.RetryExhausted` if the
+        recursion-depth guard is hit, or if tailscale login/authorisation is
+        required (retrying will not help; the caller must complete login via
+        :meth:`tailscale_auth_url` first).
+        """
         if depth > 10:
-            raise ConnectionError("Tailscale attempted to disconnect 10 times with no success")
+            raise RetryExhausted("Tailscale attempted to disconnect 10 times with no success")
         response: TailscaleStatus | list[Any] = await self._tailscale_status()
         if isinstance(response, list) and response == []:
             return True
@@ -771,7 +850,8 @@ class GLinet:
             depth += 1
             return await self.tailscale_stop(depth)
         if status in [1, 2]:
-            raise ConnectionAbortedError(
+            # Not literal exhaustion: login-required is a state no retry can fix (see RetryExhausted docstring).
+            raise RetryExhausted(
                 "Disconnection not attempted as tailscale authorisation is not "
                 f"complete, due to {TailscaleConnection(status).name}. Therefore "
                 "tailscale was already not connected"

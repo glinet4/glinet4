@@ -18,10 +18,10 @@ from glinet4 import GLinet
 
 
 async def main() -> None:
-    router = GLinet(base_url="http://192.168.8.1/rpc")
-    await router.login("root", "your-router-password")
-    info = await router.router_info()
-    print(info["model"], info["firmware_version"])
+    async with GLinet("http://192.168.8.1/rpc") as router:
+        await router.login("root", "your-router-password")
+        info = await router.router_info()
+        print(info["model"], info["firmware_version"])
 
 
 asyncio.run(main())

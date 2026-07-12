@@ -1,30 +1,57 @@
 """Unit tests for GLinet's API/orchestration layer against a mocked transport."""
 # pylint: disable=missing-function-docstring,protected-access,redefined-outer-name
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 from semver import Version
 
 from glinet4._transport import GLinetTransport
 from glinet4.enums import TailscaleConnection
+from glinet4.error_handling import RetryExhausted, UnexpectedResponse
 from glinet4.glinet import GLinet
 
-
-@pytest.fixture
-def glinet():
-    g = GLinet(base_url="http://192.168.8.1/rpc")
-    g._transport = MagicMock()
-    g._transport.request = AsyncMock()
-    g._transport.request_long_timeout = AsyncMock()
-    g._transport.sid = "SID"
-    return g
+# The shared transport-mocked `glinet` fixture lives in conftest.py.
 
 
 def test_construction_preserves_public_surface():
     g = GLinet(base_url="http://192.168.8.1/rpc")
     assert g.logged_in is False
     assert g.sid is None
+
+
+# --- Phase 2, Task 4: session lifecycle -----------------------------------
+
+
+def test_positional_base_url_constructs():
+    # Phase 2, Task 4: base_url is now the explicit first positional parameter
+    # (previously it silently bound to `sid` and requests would go nowhere).
+    g = GLinet("http://192.168.8.1/rpc")
+    assert g._transport.session.base_url == "http://192.168.8.1/rpc"
+
+
+async def test_async_context_manager_delegates_close_to_transport():
+    g = GLinet(base_url="http://192.168.8.1/rpc")
+    g._transport.close = AsyncMock()
+    async with g as ctx:
+        assert ctx is g
+    g._transport.close.assert_awaited_once()
+
+
+async def test_async_context_manager_does_not_swallow_exceptions():
+    g = GLinet(base_url="http://192.168.8.1/rpc")
+    g._transport.close = AsyncMock()
+    with pytest.raises(ValueError, match="boom"):
+        async with g:
+            raise ValueError("boom")
+    g._transport.close.assert_awaited_once()
+
+
+async def test_close_delegates_to_transport():
+    g = GLinet(base_url="http://192.168.8.1/rpc")
+    g._transport.close = AsyncMock()
+    await g.close()
+    g._transport.close.assert_awaited_once()
 
 
 def test_gen_sid_payload_shim_forwards_non_mutating():
@@ -82,13 +109,13 @@ async def test_router_info_tolerates_unparseable_version(glinet):
 
 async def test_wireguard_client_state_raises_clear_error_on_unparseable_firmware(glinet):
     glinet._transport.request.return_value = {"firmware_version": "not-a-version"}
-    with pytest.raises(ValueError, match="not-a-version"):
+    with pytest.raises(UnexpectedResponse, match="not-a-version"):
         await glinet.wireguard_client_state()
 
 
 async def test_wireguard_client_start_raises_clear_error_on_unparseable_firmware(glinet):
     glinet._transport.request.return_value = {"firmware_version": "not-a-version"}
-    with pytest.raises(ValueError, match="not-a-version"):
+    with pytest.raises(UnexpectedResponse, match="not-a-version"):
         await glinet.wireguard_client_start(group_id=1, peer_or_tunnel_id=2)
 
 
@@ -185,20 +212,21 @@ async def test_tailscale_start_enables_when_empty_then_connects(glinet):
 
 
 async def test_tailscale_start_connecting_then_connected(glinet, monkeypatch):
-    async def _no_sleep(*_args, **_kwargs):
-        return None
-
-    monkeypatch.setattr("glinet4.glinet.asyncio.sleep", _no_sleep)
+    # Phase 2, Task 5: patch with an AsyncMock (not a bare no-op) so the retry-
+    # sleep path's *execution* is actually asserted, not just tolerated.
+    sleep = AsyncMock()
+    monkeypatch.setattr("glinet4.glinet.asyncio.sleep", sleep)
     glinet._transport.request.side_effect = [
         {"status": 4},  # connecting
         {"status": 3},  # connected after the (patched) 3s wait
     ]
     assert await glinet.tailscale_start() is True
+    sleep.assert_awaited_once_with(3)
 
 
 async def test_tailscale_start_aborts_when_login_required(glinet):
     glinet._transport.request.return_value = {"status": 1}
-    with pytest.raises(ConnectionAbortedError):
+    with pytest.raises(RetryExhausted):
         await glinet.tailscale_start()
 
 
@@ -220,6 +248,12 @@ async def test_tailscale_stop_disables_when_connected(glinet):
 async def test_tailscale_stop_already_disconnected_status_zero_returns_true(glinet):
     glinet._transport.request.return_value = {"status": 0}
     assert await glinet.tailscale_stop() is True
+
+
+async def test_tailscale_stop_aborts_when_login_required(glinet):
+    glinet._transport.request.return_value = {"status": 1}
+    with pytest.raises(RetryExhausted):
+        await glinet.tailscale_stop()
 
 
 async def test_wifi_status_extracts_radio_list(glinet):
