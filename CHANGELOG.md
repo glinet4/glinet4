@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.4](https://github.com/glinet4/glinet4/compare/v0.2.3...v0.2.4) (2026-07-13)
+
+
+### Features
+
+* wrap the parental-control and content-filtering read surface ([#35](https://github.com/glinet4/glinet4/issues/35)) ([4491708](https://github.com/glinet4/glinet4/commit/449170895e1cdd8e0a9cf22014ee6f09bc4bf175))
+
 ## [0.2.3](https://github.com/glinet4/glinet4/compare/v0.2.2...v0.2.3) (2026-07-13)
 
 
