@@ -787,6 +787,35 @@ CASES: list[RouteCase] = [
         ["tethering", "get_config"],
         [],
     ),
+    # --- QoS / SQM ------------------------------------------------------
+    _a(
+        "qos_config",
+        ["qos", "get_config"],
+        {"enable": True, "mode": "1"},
+    ),
+    _b(
+        "qos_clients_happy",
+        "qos_clients",
+        ["qos", "get_client_list"],
+        "clients",
+        [{"mac": "AA:BB:CC:DD:EE:03", "limit_down": 5000, "limit_up": 1000}],
+    ),
+    _b_missing("qos_clients_missing_key", "qos_clients", ["qos", "get_client_list"], []),
+    _b(
+        "qos_device_groups_happy",
+        "qos_device_groups",
+        ["qos", "get_device_group"],
+        "group",
+        [{"name": "example-group", "limit_down": 20000, "limit_up": 5000}],
+    ),
+    _b_missing(
+        "qos_device_groups_missing_key", "qos_device_groups", ["qos", "get_device_group"], []
+    ),
+    _a(
+        "sqm_config",
+        ["sqm", "get_config"],
+        {"download": 100, "enable": False, "qdisc": "fq_codel", "upload": 40},
+    ),
 ]
 
 

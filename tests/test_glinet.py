@@ -626,6 +626,36 @@ async def test_tethering_config() -> None:
     assert isinstance(config, list)
 
 
+async def test_qos_config() -> None:
+    """Test retrieving the QoS enable state and mode."""
+    config = await router.qos_config()
+    print(config)
+    assert config["enable"] in [True, False]
+    assert "mode" in config
+
+
+async def test_qos_clients() -> None:
+    """Test retrieving per-client QoS bandwidth-limit entries (empty is a valid shape)."""
+    clients = await router.qos_clients()
+    print(clients)
+    assert isinstance(clients, list)
+
+
+async def test_qos_device_groups() -> None:
+    """Test retrieving QoS device-group bandwidth-limit entries (empty is a valid shape)."""
+    groups = await router.qos_device_groups()
+    print(groups)
+    assert isinstance(groups, list)
+
+
+async def test_sqm_config() -> None:
+    """Test retrieving the SQM enable state and bandwidth limits."""
+    config = await router.sqm_config()
+    print(config)
+    assert config["enable"] in [True, False]
+    assert "qdisc" in config
+
+
 async def test_wireguard_client_list() -> None:
     """Test retrieving the list of WireGuard clients."""
     response = await router.wireguard_client_list()

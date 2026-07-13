@@ -95,7 +95,10 @@ class ServicesRoutes:
         :class:`~glinet4.error_handling.TokenError` when the router's message
         indicates a conflict, so callers don't loop on re-authentication.
         The router's acknowledgement carries nothing useful and is discarded;
-        confirm the change via :meth:`network_acceleration`.
+        confirm the change via :meth:`network_acceleration`. To see what
+        might be blocking a re-enable, check
+        :meth:`~glinet4.glinet.GLinet.qos_config` and
+        :meth:`~glinet4.glinet.GLinet.sqm_config`.
         """
         current = await self.network_acceleration()
         await self._transport.request(

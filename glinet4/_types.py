@@ -212,7 +212,13 @@ class FlowStatsApp(TypedDict, total=False):
 
 
 class NetworkAcceleration(TypedDict, total=False):
-    """``network get_netnat_config`` — the NAT/DPI acceleration state."""
+    """``network get_netnat_config`` — the NAT/DPI acceleration state.
+
+    ``qos_enabled`` flags whether QoS is currently one of the features
+    blocking acceleration; see :meth:`~glinet4.glinet.GLinet.qos_config` and
+    :meth:`~glinet4.glinet.GLinet.sqm_config` for the two conflicting
+    features' detailed settings.
+    """
 
     enable: bool
     dpi_enabled: bool
@@ -891,4 +897,33 @@ class TetheringStatus(TypedDict, total=False):
     """
 
     devices: list[dict[str, Any]]
+
+
+class QosConfig(TypedDict, total=False):
+    """``qos get_config`` — Quality-of-Service (traffic-shaping) enablement and mode.
+
+    QoS is one of the features that conflicts with NAT acceleration -- see
+    :meth:`~glinet4.glinet.GLinet.network_acceleration_set`. ``mode`` is
+    reported as a numeric string (e.g. ``"0"``) by the router, not an int;
+    undocumented beyond that, kept as captured.
+    """
+
+    enable: bool
+    mode: str
+
+
+class SqmConfig(TypedDict, total=False):
+    """``sqm get_config`` — Smart Queue Management (bufferbloat mitigation) settings.
+
+    SQM is one of the features that conflicts with NAT acceleration -- see
+    :meth:`~glinet4.glinet.GLinet.network_acceleration_set`. ``download``/
+    ``upload`` are bandwidth limits (unit undocumented by the router);
+    ``qdisc`` names the underlying Linux queuing discipline (e.g.
+    ``"fq_codel"``).
+    """
+
+    download: int
+    enable: bool
+    qdisc: str
+    upload: int
     status: int

@@ -1,5 +1,5 @@
-"""DNS, ARP, LAN, IPv6, DDNS, multi-WAN, repeater, and tethering route methods for
-:class:`glinet4.glinet.GLinet` (mixin).
+"""DNS, ARP, LAN, IPv6, DDNS, multi-WAN, repeater, tethering, QoS, and SQM
+route methods for :class:`glinet4.glinet.GLinet` (mixin).
 
 Multi-WAN (``kmwan``), repeater, and tethering are grouped here alongside the
 Task-1 network services rather than split across ``wan.py``/new modules:
@@ -8,6 +8,14 @@ tethering) would fit ``wan.py``, and neither repeater (WiFi client mode) nor
 tethering (modem sharing) is a natural fit for any other existing mixin, so
 keeping all seven read-only getters in one module avoids fragmenting a small,
 thematically-related read surface across several near-empty ones.
+
+QoS (``qos``) and SQM (``sqm``) -- traffic-shaping features, not WAN uplink
+or service-daemon concerns -- are added here for the same reason rather than
+into ``services.py``: they complete this task's network-services read
+surface. They are, however, the two features that conflict with
+``services.py``'s NAT acceleration (:meth:`~glinet4.glinet.GLinet.network_acceleration_set`);
+see the cross-references on :meth:`NetworkRoutes.qos_config` and
+:meth:`NetworkRoutes.sqm_config` below.
 """
 
 from typing import TYPE_CHECKING, Any
@@ -22,9 +30,11 @@ from .._types import (
     LanInterface,
     MultiWanConfig,
     MultiWanStatus,
+    QosConfig,
     RepeaterConfig,
     RepeaterStatus,
     SavedAp,
+    SqmConfig,
     TetheringStatus,
 )
 
@@ -33,7 +43,7 @@ if TYPE_CHECKING:
 
 
 class NetworkRoutes:
-    """DNS/ARP/LAN/IPv6/DDNS/multi-WAN/repeater/tethering RPCs, mixed into :class:`glinet4.glinet.GLinet`."""
+    """DNS/ARP/LAN/IPv6/DDNS/multi-WAN/repeater/tethering/QoS/SQM RPCs, mixed into :class:`glinet4.glinet.GLinet`."""
 
     if TYPE_CHECKING:
         _transport: GLinetTransport
@@ -180,5 +190,57 @@ class NetworkRoutes:
         """
         result: list[dict[str, Any]] = await self._transport.request(
             self._payload("call", ["tethering", "get_config"])
+        )
+        return result
+
+    async def qos_config(self) -> QosConfig:
+        """Return the QoS (traffic-shaping) enable state and mode.
+
+        QoS is one of the features that conflicts with NAT acceleration: the
+        router refuses to enable acceleration while QoS is on (see
+        :meth:`~glinet4.glinet.GLinet.network_acceleration_set`). A caller
+        deciding whether acceleration can be enabled should check this
+        alongside :meth:`sqm_config`.
+        """
+        result: QosConfig = await self._transport.request(
+            self._payload("call", ["qos", "get_config"])
+        )
+        return result
+
+    async def qos_clients(self) -> list[dict[str, Any]]:
+        """Return per-client QoS bandwidth-limit entries.
+
+        Empty when no per-client QoS rules are configured (the reference
+        capture's state) -- that is the genuine shape, not an error. Entries
+        are untyped dicts pending a capture from a device with QoS client
+        rules configured.
+        """
+        response = await self._transport.request(self._payload("call", ["qos", "get_client_list"]))
+        result: list[dict[str, Any]] = response.get("clients", [])
+        return result
+
+    async def qos_device_groups(self) -> list[dict[str, Any]]:
+        """Return QoS device-group bandwidth-limit entries.
+
+        Empty when no QoS device groups are configured (the reference
+        capture's state) -- that is the genuine shape, not an error. Entries
+        are untyped dicts pending a capture from a device with QoS device
+        groups configured.
+        """
+        response = await self._transport.request(self._payload("call", ["qos", "get_device_group"]))
+        result: list[dict[str, Any]] = response.get("group", [])
+        return result
+
+    async def sqm_config(self) -> SqmConfig:
+        """Return the SQM (Smart Queue Management / bufferbloat mitigation) settings.
+
+        SQM is one of the features that conflicts with NAT acceleration: the
+        router refuses to enable acceleration while SQM is on (see
+        :meth:`~glinet4.glinet.GLinet.network_acceleration_set`). A caller
+        deciding whether acceleration can be enabled should check this
+        alongside :meth:`qos_config`.
+        """
+        result: SqmConfig = await self._transport.request(
+            self._payload("call", ["sqm", "get_config"])
         )
         return result
