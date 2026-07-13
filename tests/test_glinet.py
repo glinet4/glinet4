@@ -472,6 +472,201 @@ async def test_network_interfaces_status() -> None:
         assert entry["online"] in [True, False]
 
 
+async def test_dns_config() -> None:
+    """Test retrieving the DNS resolution mode and provider settings.
+
+    ``server_auto`` (upstream DNS servers) and, on a device where they're
+    set, ``nextdns_id``/``controld_id`` (NextDNS/ControlD account
+    identifiers) are excluded from the printed output.
+    """
+    config = await router.dns_config()
+    identifying = {"server_auto", "nextdns_id", "controld_id"}
+    print({k: v for k, v in config.items() if k not in identifying})
+    assert isinstance(config, dict)
+    assert "mode" in config
+
+
+async def test_dns_providers() -> None:
+    """Test retrieving the built-in DNS provider catalogue."""
+    providers = await router.dns_providers()
+    print(providers)
+    assert isinstance(providers, list)
+    assert len(providers) > 0
+    for provider in providers:
+        assert "provider" in provider
+
+
+async def test_arp_table() -> None:
+    """Test retrieving the router's ARP cache.
+
+    Entries are the caller's own LAN clients' MAC/IP addresses -- identifying
+    data -- so only the entry count is printed, not the raw entries.
+    """
+    entries = await router.arp_table()
+    print(f"{len(entries)} ARP entries")
+    assert isinstance(entries, list)
+    for entry in entries:
+        assert "mac" in entry
+        assert "ip" in entry
+
+
+async def test_lan_interfaces() -> None:
+    """Test retrieving the router's LAN/guest/IoT network segment configs.
+
+    Entries map the caller's LAN topology -- identifying data -- so only the
+    interface count is printed, not the raw entries.
+    """
+    interfaces = await router.lan_interfaces()
+    print(f"{len(interfaces)} LAN interfaces")
+    assert isinstance(interfaces, list)
+    assert len(interfaces) > 0
+    for iface in interfaces:
+        assert "interface" in iface
+        assert "netmask" in iface
+
+
+async def test_ipv6_config() -> None:
+    """Test retrieving IPv6 enablement and LAN addressing mode."""
+    config = await router.ipv6_config()
+    print(config)
+    assert config["enable"] in [True, False]
+    assert "lan_mode" in config
+
+
+async def test_ddns_config() -> None:
+    """Test retrieving the GL.iNet cloud DDNS enrollment.
+
+    ``device_id`` is a device-identifying value (see
+    :class:`~glinet4._types.DdnsConfig`), so it is excluded from the printed
+    output.
+    """
+    config = await router.ddns_config()
+    print({k: v for k, v in config.items() if k != "device_id"})
+    assert config["enable_ddns"] in [True, False]
+    assert "device_id" in config
+
+
+async def test_ddns_status() -> None:
+    """Test retrieving the current DDNS-mapped address and per-interface IPs.
+
+    ``ddns`` is the router's WAN public IP, and each ``ips[]`` entry's ``ip``
+    is also a public IP -- only the status code and interface count are
+    printed, not the raw addresses.
+    """
+    status = await router.ddns_status()
+    print(f"status={status.get('status')}, {len(status.get('ips', []))} interface(s)")
+    assert isinstance(status.get("ips", []), list)
+    assert isinstance(status.get("status"), int)
+
+
+async def test_multiwan_config() -> None:
+    """Test retrieving the multi-WAN interface failover/load-balance configuration."""
+    config = await router.multiwan_config()
+    print(config)
+    assert isinstance(config.get("interfaces", []), list)
+    assert isinstance(config.get("mode"), int)
+    for iface in config.get("interfaces", []):
+        assert "interface" in iface
+        assert "metric" in iface
+
+
+async def test_multiwan_status() -> None:
+    """Test retrieving per-interface multi-WAN health status."""
+    status = await router.multiwan_status()
+    print(status)
+    assert isinstance(status.get("interfaces", []), list)
+    for iface in status.get("interfaces", []):
+        assert "interface" in iface
+        assert "status_v4" in iface
+
+
+async def test_repeater_config() -> None:
+    """Test retrieving the WiFi-repeater (client-mode) settings.
+
+    ``macaddr`` is the repeater radio's own MAC address -- identifying data
+    -- so it is excluded from the printed output.
+    """
+    config = await router.repeater_config()
+    print({k: v for k, v in config.items() if k != "macaddr"})
+    assert config["auto"] in [True, False]
+    assert "macaddr" in config
+
+
+async def test_repeater_status() -> None:
+    """Test retrieving the WiFi-repeater connection state."""
+    status = await router.repeater_status()
+    print(status)
+    assert "state" in status
+    assert "state_s" in status
+
+
+async def test_repeater_saved_aps() -> None:
+    """Test retrieving the WiFi networks the repeater has saved credentials for.
+
+    Entries carry SSIDs and MACs of the caller's own devices -- identifying
+    data -- so only the entry count is printed, not the raw entries.
+    """
+    saved_aps = await router.repeater_saved_aps()
+    print(f"{len(saved_aps)} saved APs")
+    assert isinstance(saved_aps, list)
+    for entry in saved_aps:
+        assert "ssid" in entry
+        assert "macaddr" in entry
+
+
+async def test_tethering_status() -> None:
+    """Test retrieving USB/Bluetooth tethering connection state.
+
+    ``devices`` may carry identifying info about a connected tethering
+    client -- only the device count is printed, not raw entries.
+    """
+    status = await router.tethering_status()
+    print(f"status={status.get('status')}, {len(status.get('devices', []))} device(s)")
+    assert isinstance(status.get("devices", []), list)
+    assert isinstance(status.get("status"), int)
+
+
+async def test_tethering_config() -> None:
+    """Test retrieving the router's configured tethering profiles.
+
+    Returns a bare list (not an envelope); empty when no tethering profiles
+    are configured.
+    """
+    config = await router.tethering_config()
+    print(config)
+    assert isinstance(config, list)
+
+
+async def test_qos_config() -> None:
+    """Test retrieving the QoS enable state and mode."""
+    config = await router.qos_config()
+    print(config)
+    assert config["enable"] in [True, False]
+    assert "mode" in config
+
+
+async def test_qos_clients() -> None:
+    """Test retrieving per-client QoS bandwidth-limit entries (empty is a valid shape)."""
+    clients = await router.qos_clients()
+    print(clients)
+    assert isinstance(clients, list)
+
+
+async def test_qos_device_groups() -> None:
+    """Test retrieving QoS device-group bandwidth-limit entries (empty is a valid shape)."""
+    groups = await router.qos_device_groups()
+    print(groups)
+    assert isinstance(groups, list)
+
+
+async def test_sqm_config() -> None:
+    """Test retrieving the SQM enable state and bandwidth limits."""
+    config = await router.sqm_config()
+    print(config)
+    assert config["enable"] in [True, False]
+    assert "qdisc" in config
+
+
 async def test_wireguard_client_list() -> None:
     """Test retrieving the list of WireGuard clients."""
     response = await router.wireguard_client_list()

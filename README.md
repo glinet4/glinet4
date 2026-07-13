@@ -63,6 +63,9 @@ Session: `login`, `router_reachable`. All other methods require login first.
 | System | `router_info`, `router_status`, `router_load`, `router_unixtime`, `router_disk_info`, `router_usb_info`, `router_timezone_config`, `router_mac`, `router_reboot` |
 | Network / WAN | `ping`, `wan_upstream_router_detected`, `wan_cable_state`, `wan_status`, `wan_info`, `ethernet_ports_status`, `network_mode`, `network_interfaces_status` |
 | Network acceleration | `network_acceleration`, `network_acceleration_set` |
+| Network services | `dns_config`, `dns_providers`, `arp_table`, `lan_interfaces`, `ipv6_config`, `ddns_config`, `ddns_status` |
+| Multi-WAN / repeater / tethering | `multiwan_config`, `multiwan_status`, `repeater_config`, `repeater_status`, `repeater_saved_aps`, `tethering_status`, `tethering_config` |
+| QoS / SQM | `qos_config`, `qos_clients`, `qos_device_groups`, `sqm_config` |
 | Flow statistics | `flow_stats_rule`, `flow_stats_set_enabled`, `flow_stats_top_apps`, `flow_stats_clear` |
 | Clients | `clients_list`, `static_clients_list`, `connected_clients`, `clients_status`, `clients_speed`, `wan_speed`, `client_set_blocked`, `blocked_client_macs` |
 | WiFi | `wifi_ifaces`, `wifi_iface_set_enabled`, `wifi_status`, `wifi_mlo_config` |

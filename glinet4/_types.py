@@ -212,7 +212,16 @@ class FlowStatsApp(TypedDict, total=False):
 
 
 class NetworkAcceleration(TypedDict, total=False):
-    """``network get_netnat_config`` — the NAT/DPI acceleration state."""
+    """``network get_netnat_config`` — the NAT/DPI acceleration state.
+
+    ``dpi_enabled``/``qos_enabled`` flag whether DPI/QoS are currently
+    blocking acceleration -- two of the FOUR conflicting features (Parental
+    Control / QoS / SQM / DPI; see
+    :meth:`~glinet4.glinet.GLinet.network_acceleration_set`). QoS also has
+    its own detailed getter, :meth:`~glinet4.glinet.GLinet.qos_config`, as
+    does SQM, :meth:`~glinet4.glinet.GLinet.sqm_config`. Parental Control has
+    no getter wrapped yet.
+    """
 
     enable: bool
     dpi_enabled: bool
@@ -610,3 +619,321 @@ class VpnClientTunnels(TypedDict, total=False):
     default_tunnels: list[VpnClientDefaultTunnel]
     global_enabled: bool
     tunnels: list[dict[str, Any]]
+
+
+class DnsConfig(TypedDict, total=False):
+    """``dns get_config`` — DNS resolution mode and provider settings.
+
+    ``manual_list``, ``proxy_list``, ``secure_manual_list``, and
+    ``servers_list`` are all empty in the reference capture, so their
+    per-entry item type (plain strings vs. structured records) is
+    unverified; typed as ``list[Any]`` rather than guessed. ``server_auto``
+    is non-empty and confirmed as a list of strings.
+    """
+
+    controld_id: str
+    controld_type: int
+    force_dns: bool
+    manual_list: list[Any]
+    mode: str
+    nextdns_id: str
+    override_vpn: bool
+    proto: str
+    proto_manual: str
+    provider: str
+    proxy_list: list[Any]
+    rebind_protection: bool
+    secure_manual_list: list[Any]
+    server_auto: list[str]
+    servers_list: list[Any]
+
+
+class DnsServerEntry(TypedDict, total=False):
+    """A DoH/DoT/DoQ resolver entry inside a :class:`DnsProvider`'s ``server_list``.
+
+    ``address``/``address6`` are the provider's own published resolver IPs
+    (e.g. a filtering-DNS vendor's anycast addresses) — public vendor
+    constants, not data about the caller or its network.
+    """
+
+    address: list[str]
+    address6: list[str]
+    description: str
+    name: str
+    url_doh: str
+    url_doq: str
+    url_dot: str
+
+
+class DnsProvider(TypedDict, total=False):
+    """One entry from ``dns get_info``'s bare list of built-in DNS providers.
+
+    Unlike most list-returning RPCs, ``dns get_info``'s response is a bare
+    list of these records, not an ``{key: [...]}`` envelope. Most providers
+    carry ``server_list`` (see :class:`DnsServerEntry`) and ``sup_proto``;
+    the reference capture's ``nextdns`` entry has only ``provider``/
+    ``sup_proto`` (account-specific, resolved elsewhere), and its ``manual``
+    entry instead carries ``proto_manual``/``secure_manual_list`` describing
+    the caller's own manually-entered servers.
+    """
+
+    provider: str
+    server_list: list[DnsServerEntry]
+    sup_proto: list[str]
+    proto_manual: str
+    secure_manual_list: list[Any]
+
+
+class ArpEntry(TypedDict, total=False):
+    """An entry from ``network get_arp_list``'s ``entries`` — the router's ARP cache.
+
+    Each entry identifies one of the caller's own LAN clients by MAC and IP
+    address (``device`` is the bridge/interface it was seen on, e.g.
+    ``br-lan``). Correct for a library to return — the owner is asking their
+    own router for their own client list — but treat entries as identifying
+    data and avoid logging them wholesale.
+    """
+
+    device: str
+    ip: str
+    mac: str
+
+
+class LanInterface(TypedDict, total=False):
+    """An entry from ``lan get_config_list``'s ``interfaces`` — one LAN/guest/IoT segment's DHCP config.
+
+    Each entry describes one of the router's own network segments (DHCP
+    range, gateway, subnet) rather than an individual client, but together
+    they map the caller's LAN topology — treat entries as identifying data
+    and avoid logging them wholesale. ``transfer_enable``/``wan_isolate``
+    are present only on the reference capture's ``guest``/``iot`` entries,
+    not its primary ``lan`` entry. ``lpr``'s meaning is not documented by
+    the router; kept as captured (empty in the reference capture). ``dns``
+    is also empty in every captured interface, so its per-entry item type
+    is unverified; typed as ``list[Any]`` rather than guessed (same
+    reasoning as ``lpr`` here and the four empty lists on
+    :class:`DnsConfig`).
+    """
+
+    ap_isolate: int
+    dns: list[Any]
+    enable: int
+    end: str
+    gateway: str
+    interface: str
+    ip: str
+    leasetime: str
+    lpr: list[Any]
+    netmask: str
+    start: str
+    transfer_enable: int
+    wan_isolate: int
+
+
+class Ipv6Config(TypedDict, total=False):
+    """``ipv6 get_ipv6`` — IPv6 enablement and LAN addressing mode."""
+
+    enable: bool
+    lan_dns_mode: bool
+    lan_mode: str
+
+
+class DdnsConfig(TypedDict, total=False):
+    """``ddns get_config`` — GL.iNet cloud DDNS enrollment.
+
+    ``device_id`` is the router's DDNS device identifier (used to address it
+    via GL.iNet's DDNS service) — not a secret credential, but a
+    device-identifying value worth treating with the same care as other
+    identifying fields in this module.
+    """
+
+    device_id: str
+    enable_ddns: bool
+
+
+class DdnsInterfaceAddress(TypedDict, total=False):
+    """A per-interface entry inside ``ddns get_status``'s ``ips``."""
+
+    interface: str
+    ip: list[str]
+
+
+class DdnsStatus(TypedDict, total=False):
+    """``ddns get_status`` — the DDNS-mapped address and per-interface IPs.
+
+    ``ddns`` is the router's current public IP as resolved via its DDNS
+    hostname.
+    """
+
+    ddns: str
+    ips: list[DdnsInterfaceAddress]
+    status: int
+
+
+class MultiWanInterfaceConfig(TypedDict, total=False):
+    """One entry from ``kmwan get_config``'s ``interfaces`` — one WAN-capable interface's failover config.
+
+    ``track_ipv4``/``track_ipv6`` are the addresses the router pings to
+    decide whether this interface is up (connectivity-check targets — the
+    reference capture's defaults are public DNS resolvers, but the field is
+    router-configurable, so no meaning beyond "check target" is assumed).
+    ``metric``/``weight`` set failover priority and load-balance weighting.
+    ``track_method``/``track_mode``/``track_proto`` are undocumented by the
+    router beyond being ints; kept as captured.
+    """
+
+    enable_check: bool
+    enable_ssl: bool
+    interface: str
+    metric: int
+    track_ipv4: list[str]
+    track_ipv6: list[str]
+    track_method: int
+    track_mode: int
+    track_proto: int
+    weight: int
+
+
+class MultiWanConfig(TypedDict, total=False):
+    """``kmwan get_config`` — multi-WAN interface failover/load-balance configuration.
+
+    ``mode`` selects the router's multi-WAN strategy (e.g. failover vs.
+    load-balance) as an int; undocumented by the router beyond that, kept as
+    captured.
+    """
+
+    interfaces: list[MultiWanInterfaceConfig]
+    mode: int
+
+
+class MultiWanInterfaceStatus(TypedDict, total=False):
+    """One entry from ``kmwan get_status``'s ``interfaces`` — one interface's multi-WAN health.
+
+    ``status_v4``/``status_v6`` are per-protocol health state as an int;
+    undocumented by the router beyond that, kept as captured.
+    """
+
+    interface: str
+    status_v4: int
+    status_v6: int
+
+
+class MultiWanStatus(TypedDict, total=False):
+    """``kmwan get_status`` — per-interface multi-WAN health status."""
+
+    interfaces: list[MultiWanInterfaceStatus]
+
+
+class RepeaterConfig(TypedDict, total=False):
+    """``repeater get_config`` — WiFi-repeater (client-mode) settings.
+
+    ``macaddr`` is the repeater radio's own MAC address, not a connected
+    client's.
+    """
+
+    auto: bool
+    dfs_support: bool
+    macaddr: str
+    smart_reconnect: bool
+
+
+class RepeaterPortalInfo(TypedDict, total=False):
+    """The ``portal_info`` object inside ``repeater get_status`` — captive-portal login state.
+
+    ``password`` is already redacted by the router in the reference capture
+    (returned as a placeholder string, not the live credential) — treat it
+    as sensitive regardless.
+    """
+
+    auth_mode: int
+    password: str
+    username: str
+    voucher: str
+
+
+class RepeaterStatus(TypedDict, total=False):
+    """``repeater get_status`` — WiFi-repeater connection state."""
+
+    portal_info: RepeaterPortalInfo
+    state: int
+    state_s: str
+
+
+class SavedApMacAddr(TypedDict, total=False):
+    """The nested ``macaddr`` object inside a :class:`SavedAp` entry — MAC-randomization settings.
+
+    ``macaddr`` is the MAC the repeater uses/used when associating with this
+    saved AP; ``mode``/``update`` describe the randomization policy (e.g.
+    ``"random"``/``"none"`` in the reference capture) and are otherwise
+    undocumented by the router.
+    """
+
+    macaddr: str
+    mode: str
+    update: str
+
+
+class SavedAp(TypedDict, total=False):
+    """An entry from ``repeater get_saved_ap_list``'s ``res`` — a WiFi network the repeater has saved.
+
+    Each entry names an access point the caller's router has previously
+    connected to as a repeater client (``ssid``, and the associating MAC
+    inside ``macaddr``) — identifying data about the caller's own devices
+    and connection history; avoid logging entries wholesale. ``key`` carries
+    the saved network's WiFi key; the reference capture shows the router
+    already redacts it (a placeholder string, not the live credential), but
+    treat it as sensitive regardless.
+    """
+
+    auto_portal: bool
+    disguise: bool
+    key: str
+    macaddr: SavedApMacAddr
+    manual: bool
+    protocol: str
+    ssid: str
+
+
+class TetheringStatus(TypedDict, total=False):
+    """``tethering get_status`` — USB/Bluetooth tethering connection state.
+
+    ``devices`` is empty in the reference capture (no tethering client
+    connected), so its per-entry shape is unverified — likely per-device
+    identifying info (e.g. a connected phone's MAC), so treat entries as
+    identifying data and avoid logging them wholesale once populated.
+    ``status`` is always sent by the router (an int; meaning undocumented
+    beyond that, kept as captured).
+    """
+
+    devices: list[dict[str, Any]]
+    status: int
+
+
+class QosConfig(TypedDict, total=False):
+    """``qos get_config`` — Quality-of-Service (traffic-shaping) enablement and mode.
+
+    QoS is one of the features that conflicts with NAT acceleration -- see
+    :meth:`~glinet4.glinet.GLinet.network_acceleration_set`. ``mode`` is
+    reported as a numeric string (e.g. ``"0"``) by the router, not an int;
+    undocumented beyond that, kept as captured.
+    """
+
+    enable: bool
+    mode: str
+
+
+class SqmConfig(TypedDict, total=False):
+    """``sqm get_config`` — Smart Queue Management (bufferbloat mitigation) settings.
+
+    SQM is one of the features that conflicts with NAT acceleration -- see
+    :meth:`~glinet4.glinet.GLinet.network_acceleration_set`. ``download``/
+    ``upload`` are bandwidth limits (unit undocumented by the router);
+    ``qdisc`` names the underlying Linux queuing discipline (e.g.
+    ``"fq_codel"``). ``sqm get_status`` doesn't exist on this firmware (RPC
+    absent), so there is no ``status`` field here.
+    """
+
+    download: int
+    enable: bool
+    qdisc: str
+    upload: int
