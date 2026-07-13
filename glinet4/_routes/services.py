@@ -4,11 +4,13 @@ from typing import TYPE_CHECKING, Any
 
 from .._types import (
     AdguardConfig,
+    ContentFilterConfig,
     FirmwareCheck,
     FlowStatsApp,
     FlowStatsRule,
     LedConfig,
     NetworkAcceleration,
+    ParentalControlConfig,
     TorConfig,
     UpgradeConfig,
     ZerotierConfig,
@@ -100,10 +102,9 @@ class ServicesRoutes:
         already reports two of the four via its own ``dpi_enabled``/
         ``qos_enabled`` fields (QoS also has its own detailed getter,
         :meth:`~glinet4.glinet.GLinet.qos_config`); SQM has its own getter,
-        :meth:`~glinet4.glinet.GLinet.sqm_config`. Parental Control has no
-        getter wrapped yet (``parental-control get_config`` is available on
-        the device but not yet exposed by this library), so it cannot
-        currently be ruled out from here.
+        :meth:`~glinet4.glinet.GLinet.sqm_config`; and Parental Control has
+        its own getter, :meth:`parental_control_config` -- all four conflict
+        sources are now inspectable from this library.
         """
         current = await self.network_acceleration()
         await self._transport.request(
@@ -120,6 +121,53 @@ class ServicesRoutes:
                 ],
             )
         )
+
+    async def parental_control_config(self) -> ParentalControlConfig:
+        """Return the Parental Control enablement and device groups.
+
+        Parental Control is one of the FOUR features that conflict with NAT
+        acceleration (Parental Control / QoS / SQM / DPI; see
+        :meth:`network_acceleration_set`) -- and, unlike QoS/SQM/DPI, it had
+        no getter at all until this one, so a caller could see the other
+        three off and still have no way to explain a
+        :class:`~glinet4.error_handling.FeatureConflictError`. See
+        :class:`~glinet4._types.ParentalControlConfig` for why ``groups``
+        needs careful handling once populated.
+        """
+        result: ParentalControlConfig = await self._transport.request(
+            self._payload("call", ["parental-control", "get_config", {}])
+        )
+        return result
+
+    async def content_filter_config(self) -> ContentFilterConfig:
+        """Return the content-filter (``black_white_list``) active mode.
+
+        This is the block-list/allow-list mode toggle, not Parental Control
+        itself (see :meth:`parental_control_config`) -- it backs
+        :meth:`~glinet4.glinet.GLinet.client_set_blocked`'s per-MAC
+        block/unblock, which assumes ``mode`` is already ``"black"``; use
+        this getter to confirm that assumption instead of assuming it. See
+        :class:`~glinet4._types.ContentFilterConfig` for what is and isn't
+        known about ``mode``'s accepted values.
+        """
+        result: ContentFilterConfig = await self._transport.request(
+            self._payload("call", ["black_white_list", "get_config", {}])
+        )
+        return result
+
+    async def access_control_groups(self) -> list[dict[str, Any]]:
+        """Return the router's ACL (access-control-list) device groups.
+
+        Empty when no ACL groups are configured (the reference capture's
+        state) -- that is the genuine shape, not an error. Entries are
+        untyped dicts pending a capture from a device with ACL groups
+        configured.
+        """
+        response = await self._transport.request(
+            self._payload("call", ["acl", "get_group_list", {}])
+        )
+        result: list[dict[str, Any]] = response.get("groups", [])
+        return result
 
     async def adguard_config(self) -> AdguardConfig:
         """Return the AdGuard Home enable/DNS state."""

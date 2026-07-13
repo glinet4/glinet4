@@ -301,6 +301,20 @@ async def test_zerotier_config() -> None:
     assert config["enabled"] in [True, False]
 
 
+async def test_parental_control_and_content_filter_surface() -> None:
+    """Parental Control / content-filter / ACL groups; ``groups`` may hold
+    sensitive per-device rules once populated, so only counts are printed."""
+    parental = await router.parental_control_config()
+    print(f"enable={parental.get('enable')}, {len(parental.get('groups', []))} group(s)")
+    assert parental["enable"] in [True, False]
+    content_filter = await router.content_filter_config()
+    print(content_filter)
+    assert "mode" in content_filter
+    acl_groups = await router.access_control_groups()
+    print(f"{len(acl_groups)} ACL group(s)")
+    assert isinstance(acl_groups, list)
+
+
 async def test_led_config() -> None:
     """Test retrieving the LED configuration."""
     config = await router.led_config()

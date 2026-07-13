@@ -204,8 +204,8 @@ class NetworkRoutes:
         deciding whether acceleration can be enabled should check this
         alongside :meth:`sqm_config` and
         :meth:`~glinet4.glinet.GLinet.network_acceleration`'s own
-        ``dpi_enabled``/``qos_enabled`` fields; Parental Control has no
-        getter wrapped yet.
+        ``dpi_enabled``/``qos_enabled`` fields, plus Parental Control's own
+        getter, :meth:`~glinet4.glinet.GLinet.parental_control_config`.
         """
         result: QosConfig = await self._transport.request(
             self._payload("call", ["qos", "get_config"])
@@ -246,8 +246,8 @@ class NetworkRoutes:
         deciding whether acceleration can be enabled should check this
         alongside :meth:`qos_config` and
         :meth:`~glinet4.glinet.GLinet.network_acceleration`'s own
-        ``dpi_enabled``/``qos_enabled`` fields; Parental Control has no
-        getter wrapped yet.
+        ``dpi_enabled``/``qos_enabled`` fields, plus Parental Control's own
+        getter, :meth:`~glinet4.glinet.GLinet.parental_control_config`.
         """
         result: SqmConfig = await self._transport.request(
             self._payload("call", ["sqm", "get_config"])
