@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/glinet4/glinet4/compare/v0.2.1...v0.2.2) (2026-07-13)
+
+
+### Features
+
+* wrap the VPN read surface (OpenVPN, WireGuard server, tunnel state) ([#31](https://github.com/glinet4/glinet4/issues/31)) ([b92d1c0](https://github.com/glinet4/glinet4/commit/b92d1c0ae5dcd9e0538e46b14cf7de78fef3900c))
+
 ## [0.2.1](https://github.com/glinet4/glinet4/compare/v0.2.0...v0.2.1) (2026-07-12)
 
 
