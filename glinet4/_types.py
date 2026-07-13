@@ -705,11 +705,15 @@ class LanInterface(TypedDict, total=False):
     and avoid logging them wholesale. ``transfer_enable``/``wan_isolate``
     are present only on the reference capture's ``guest``/``iot`` entries,
     not its primary ``lan`` entry. ``lpr``'s meaning is not documented by
-    the router; kept as captured (empty in the reference capture).
+    the router; kept as captured (empty in the reference capture). ``dns``
+    is also empty in every captured interface, so its per-entry item type
+    is unverified; typed as ``list[Any]`` rather than guessed (same
+    reasoning as ``lpr`` here and the four empty lists on
+    :class:`DnsConfig`).
     """
 
     ap_isolate: int
-    dns: list[str]
+    dns: list[Any]
     enable: int
     end: str
     gateway: str
@@ -894,9 +898,12 @@ class TetheringStatus(TypedDict, total=False):
     connected), so its per-entry shape is unverified — likely per-device
     identifying info (e.g. a connected phone's MAC), so treat entries as
     identifying data and avoid logging them wholesale once populated.
+    ``status`` is always sent by the router (an int; meaning undocumented
+    beyond that, kept as captured).
     """
 
     devices: list[dict[str, Any]]
+    status: int
 
 
 class QosConfig(TypedDict, total=False):
@@ -919,11 +926,11 @@ class SqmConfig(TypedDict, total=False):
     :meth:`~glinet4.glinet.GLinet.network_acceleration_set`. ``download``/
     ``upload`` are bandwidth limits (unit undocumented by the router);
     ``qdisc`` names the underlying Linux queuing discipline (e.g.
-    ``"fq_codel"``).
+    ``"fq_codel"``). ``sqm get_status`` doesn't exist on this firmware (RPC
+    absent), so there is no ``status`` field here.
     """
 
     download: int
     enable: bool
     qdisc: str
     upload: int
-    status: int
