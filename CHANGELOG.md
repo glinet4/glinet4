@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/glinet4/glinet4/compare/v0.2.2...v0.2.3) (2026-07-13)
+
+
+### Features
+
+* wrap the network, multi-WAN, and traffic-shaping read surface ([#33](https://github.com/glinet4/glinet4/issues/33)) ([7bde1de](https://github.com/glinet4/glinet4/commit/7bde1debadafabe791e6c836783192b0f86dccc6))
+
 ## [0.2.2](https://github.com/glinet4/glinet4/compare/v0.2.1...v0.2.2) (2026-07-13)
 
 
