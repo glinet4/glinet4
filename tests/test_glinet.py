@@ -558,6 +558,92 @@ async def test_openvpn_client_configs() -> None:
     assert isinstance(configs, list)
 
 
+async def test_wireguard_server_status() -> None:
+    """Test retrieving WireGuard server tunnel status and per-peer stats."""
+    status = await router.wireguard_server_status()
+    print(status)
+    assert isinstance(status, dict)
+    server = status.get("server", {})
+    if not server:
+        pytest.skip("no WireGuard server status on this router")
+    assert server["initialization"] in [True, False]
+    assert isinstance(server["status"], int)
+
+
+async def test_wireguard_server_config() -> None:
+    """Test retrieving the WireGuard server configuration."""
+    config = await router.wireguard_server_config()
+    print(config)
+    assert isinstance(config, dict)
+    assert config["initialization"] in [True, False]
+    assert isinstance(config.get("port"), int)
+
+
+async def test_wireguard_server_setting() -> None:
+    """Test retrieving WireGuard server client-to-client/LAN-access/masquerade settings."""
+    setting = await router.wireguard_server_setting()
+    print(setting)
+    assert setting["client_to_client"] in [True, False]
+    assert setting["local_access"] in [True, False]
+    assert setting["masq"] in [True, False]
+
+
+async def test_wireguard_server_peers() -> None:
+    """Test retrieving WireGuard server peers."""
+    peers = await router.wireguard_server_peers()
+    # Don't print key material (public_key/private_key) from a live peer record.
+    sensitive = ("public_key", "private_key")
+    print([{k: v for k, v in peer.items() if k not in sensitive} for peer in peers])
+    assert isinstance(peers, list)
+    if not peers:
+        pytest.skip("no WireGuard server peers configured on this router")
+    for peer in peers:
+        assert "peer_id" in peer
+        assert "name" in peer
+
+
+async def test_wireguard_server_routes() -> None:
+    """Test retrieving WireGuard server route rules."""
+    routes = await router.wireguard_server_routes()
+    print(routes)
+    assert isinstance(routes.get("ipv4_route_rules", []), list)
+    assert isinstance(routes.get("ipv6_route_rules", []), list)
+
+
+async def test_wireguard_client_groups() -> None:
+    """Test retrieving WireGuard client groups."""
+    groups = await router.wireguard_client_groups()
+    print(groups)
+    assert isinstance(groups, list)
+    for group in groups:
+        assert "group_id" in group
+        assert "group_name" in group
+
+
+async def test_wireguard_client_configs() -> None:
+    """Test retrieving WireGuard client configuration entries."""
+    configs = await router.wireguard_client_configs()
+    print(configs)
+    assert isinstance(configs, list)
+
+
+async def test_vpn_client_status() -> None:
+    """Test retrieving the vpn-client subsystem's mode and per-tunnel status list."""
+    status = await router.vpn_client_status()
+    print(status)
+    assert isinstance(status.get("mode"), int)
+    assert isinstance(status.get("status_list", []), list)
+
+
+async def test_vpn_client_tunnels() -> None:
+    """Test retrieving default tunnel policies and configured VPN tunnels."""
+    tunnels = await router.vpn_client_tunnels()
+    print(tunnels)
+    assert tunnels["global_enabled"] in [True, False]
+    assert isinstance(tunnels.get("default_tunnels", []), list)
+    assert isinstance(tunnels.get("tunnels", []), list)
+
+
 @disruptive
 async def test_wireguard_start() -> None:
     """Test starting the WireGuard client."""

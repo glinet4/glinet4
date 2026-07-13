@@ -442,3 +442,171 @@ class OpenVpnClientGroup(TypedDict, total=False):
     show: bool
     username: str
     work_mode: str
+
+
+class WireguardServerPeerStatus(TypedDict, total=False):
+    """A per-peer status entry inside ``wg-server get_status``'s ``peers`` list.
+
+    Traffic/handshake stats only — distinct from :class:`WireguardPeer`
+    (``wg-server get_peer_list``), which carries the peer's full
+    configuration including key material.
+    """
+
+    latest_handshake: int
+    name: str
+    private_ip: str
+    public_ip: str
+    rx_bytes: int
+    tx_bytes: int
+
+
+class WireguardServerTunnelStatus(TypedDict, total=False):
+    """The nested ``server`` object inside ``wg-server get_status`` — overall tunnel status."""
+
+    initialization: bool
+    log: str
+    rx_bytes: int
+    status: int
+    tunnel_ip: str
+    tx_bytes: int
+
+
+class WireguardServerStatus(TypedDict, total=False):
+    """``wg-server get_status`` — per-peer stats plus overall tunnel status."""
+
+    peers: list[WireguardServerPeerStatus]
+    server: WireguardServerTunnelStatus
+
+
+class WireguardServerConfig(TypedDict, total=False):
+    """``wg-server get_config``.
+
+    ``private_key``/``public_key`` are the server's own WireGuard keypair;
+    treat this response as sensitive and avoid logging it wholesale.
+    """
+
+    address_v4: str
+    address_v6: str
+    amnezia: str
+    initialization: bool
+    local_access: bool
+    obfuscation: int
+    port: int
+    private_key: str
+    public_key: str
+
+
+class WireguardServerSetting(TypedDict, total=False):
+    """``wg-server get_setting`` — client-to-client, LAN access, and NAT masquerade flags."""
+
+    client_to_client: bool
+    local_access: bool
+    masq: bool
+
+
+class WireguardPeer(TypedDict, total=False):
+    """A peer entry from ``wg-server get_peer_list``'s ``peers``.
+
+    Carries the peer's full configuration, including key material
+    (``public_key``, ``private_key``) and its ``end_point``. This is the
+    owner's own peer data returned to the owner — expected for a library —
+    but treat entries as sensitive and avoid logging them wholesale.
+    """
+
+    allowed_ips: str
+    client_ip: str
+    deprecated: int
+    dns: str
+    enabled: bool
+    end_point: str
+    mtu: int
+    name: str
+    peer_id: int
+    persistent_keepalive: int
+    presharedkey_enable: bool
+    private_key: str
+    public_key: str
+
+
+class WireguardClientGroup(TypedDict, total=False):
+    """A group entry from ``wg-client get_group_list``'s ``groups``.
+
+    Represents one imported WireGuard client provider/profile. ``password``
+    carries the group's stored auth credential when set; treat entries as
+    sensitive and avoid logging them wholesale.
+    """
+
+    auth_type: int
+    group_id: int
+    group_name: str
+    group_type: int
+    password: str
+    peer_count: int
+    procedure: int
+    show: bool
+    username: str
+
+
+class VpnClientStatus(TypedDict, total=False):
+    """``vpn-client get_status`` — full envelope (mode plus per-tunnel status list).
+
+    ``status_list`` entries reuse :class:`WireguardClientStatus`, the same
+    type :meth:`~glinet4.glinet.GLinet.wireguard_client_state` already
+    extracts from this identical RPC on current firmware.
+    """
+
+    mode: int
+    status_list: list[WireguardClientStatus]
+
+
+class VpnClientTunnelSource(TypedDict, total=False):
+    """The ``from`` object inside a :data:`VpnClientDefaultTunnel` entry."""
+
+    type: str
+
+
+class VpnClientTunnelDestination(TypedDict, total=False):
+    """The ``to`` object inside a :data:`VpnClientDefaultTunnel` entry."""
+
+    domain_list: str
+    domain_list_len: int
+    manual: bool
+    type: str
+
+
+class VpnClientTunnelVia(TypedDict, total=False):
+    """The ``via`` object inside a :data:`VpnClientDefaultTunnel` entry."""
+
+    via: str
+
+
+# ``from`` is a Python keyword, so this entry (``vpn-client get_tunnel``'s
+# ``default_tunnels``) uses the functional TypedDict form instead of a class
+# body, which cannot have a field literally named ``from``.
+VpnClientDefaultTunnel = TypedDict(
+    "VpnClientDefaultTunnel",
+    {
+        "enabled": bool,
+        "from": VpnClientTunnelSource,
+        "id": str,
+        "killswitch": bool,
+        "name": str,
+        "to": VpnClientTunnelDestination,
+        "tunnel_id": int,
+        "via": VpnClientTunnelVia,
+    },
+    total=False,
+)
+
+
+class VpnClientTunnels(TypedDict, total=False):
+    """``vpn-client get_tunnel`` — default tunnel policies and configured VPN tunnels.
+
+    ``tunnels`` is empty in the reference capture (no VPN tunnels
+    configured), so its per-entry field names are unverified; typed as
+    untyped dicts rather than guessed.
+    """
+
+    default_tunnels: list[VpnClientDefaultTunnel]
+    global_enabled: bool
+    tunnels: list[dict[str, Any]]

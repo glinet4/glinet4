@@ -409,6 +409,153 @@ CASES: list[RouteCase] = [
         ["ovpn-client", "get_all_config_list"],
         [],
     ),
+    # --- WireGuard server / client, VPN client tunnel state ----------------
+    _a(
+        "wireguard_server_status",
+        ["wg-server", "get_status"],
+        {
+            "peers": [
+                {
+                    "latest_handshake": 1783200000,
+                    "name": "Example Phone",
+                    "private_ip": "10.11.0.2/32",
+                    "public_ip": "203.0.113.7",
+                    "rx_bytes": 12345,
+                    "tx_bytes": 54321,
+                }
+            ],
+            "server": {
+                "initialization": True,
+                "log": "",
+                "rx_bytes": 12345,
+                "status": 1,
+                "tunnel_ip": "10.11.0.1/24",
+                "tx_bytes": 54321,
+            },
+        },
+    ),
+    _a(
+        "wireguard_server_config",
+        ["wg-server", "get_config"],
+        {
+            "address_v4": "10.11.0.1/24",
+            "address_v6": "fd00:db8:0:def::1/64",
+            "amnezia": "",
+            "initialization": True,
+            "local_access": False,
+            "obfuscation": 0,
+            "port": 51820,
+            "private_key": "example-server-private-key",
+            "public_key": "example-server-public-key",
+        },
+    ),
+    _a(
+        "wireguard_server_setting",
+        ["wg-server", "get_setting"],
+        {"client_to_client": False, "local_access": True, "masq": True},
+    ),
+    _b(
+        "wireguard_server_peers_happy",
+        "wireguard_server_peers",
+        ["wg-server", "get_peer_list"],
+        "peers",
+        [
+            {
+                "allowed_ips": "0.0.0.0/0",
+                "client_ip": "10.11.0.2/24",
+                "deprecated": 0,
+                "dns": "10.11.0.1",
+                "enabled": True,
+                "end_point": "",
+                "mtu": 1420,
+                "name": "Example Phone",
+                "peer_id": 4242,
+                "persistent_keepalive": 25,
+                "presharedkey_enable": False,
+                "private_key": "example-peer-private-key",
+                "public_key": "example-peer-public-key",
+            }
+        ],
+    ),
+    _b_missing(
+        "wireguard_server_peers_missing_key",
+        "wireguard_server_peers",
+        ["wg-server", "get_peer_list"],
+        [],
+    ),
+    _a(
+        "wireguard_server_routes",
+        ["wg-server", "get_route_list"],
+        {"ipv4_route_rules": [], "ipv6_route_rules": []},
+    ),
+    _b(
+        "wireguard_client_groups_happy",
+        "wireguard_client_groups",
+        ["wg-client", "get_group_list"],
+        "groups",
+        [
+            {
+                "auth_type": 1,
+                "group_id": 2002,
+                "group_name": "ExampleWgVPN",
+                "group_type": 1,
+                "password": "example-secret",
+                "peer_count": 0,
+                "procedure": 1,
+                "show": False,
+                "username": "",
+            }
+        ],
+    ),
+    _b_missing(
+        "wireguard_client_groups_missing_key",
+        "wireguard_client_groups",
+        ["wg-client", "get_group_list"],
+        [],
+    ),
+    _b(
+        "wireguard_client_configs_happy",
+        "wireguard_client_configs",
+        ["wg-client", "get_all_config_list"],
+        "config_list",
+        [{"config_id": 1, "name": "sample-wg-profile"}],
+    ),
+    _b_missing(
+        "wireguard_client_configs_missing_key",
+        "wireguard_client_configs",
+        ["wg-client", "get_all_config_list"],
+        [],
+    ),
+    _a(
+        "vpn_client_status",
+        ["vpn-client", "get_status"],
+        {"mode": 0, "status_list": []},
+    ),
+    _a(
+        "vpn_client_tunnels",
+        ["vpn-client", "get_tunnel"],
+        {
+            "default_tunnels": [
+                {
+                    "enabled": True,
+                    "from": {"type": "default"},
+                    "id": "cfg0example",
+                    "killswitch": False,
+                    "name": "example default policy",
+                    "to": {
+                        "domain_list": "",
+                        "domain_list_len": 0,
+                        "manual": True,
+                        "type": "default",
+                    },
+                    "tunnel_id": 100,
+                    "via": {"via": "novpn"},
+                }
+            ],
+            "global_enabled": False,
+            "tunnels": [],
+        },
+    ),
 ]
 
 
