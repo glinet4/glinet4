@@ -12,9 +12,10 @@ thematically-related read surface across several near-empty ones.
 QoS (``qos``) and SQM (``sqm``) -- traffic-shaping features, not WAN uplink
 or service-daemon concerns -- are added here for the same reason rather than
 into ``services.py``: they complete this task's network-services read
-surface. They are, however, the two features that conflict with
-``services.py``'s NAT acceleration (:meth:`~glinet4.glinet.GLinet.network_acceleration_set`);
-see the cross-references on :meth:`NetworkRoutes.qos_config` and
+surface. They are, however, two of the FOUR features that conflict with
+``services.py``'s NAT acceleration (Parental Control / QoS / SQM / DPI; see
+:meth:`~glinet4.glinet.GLinet.network_acceleration_set`); see the
+cross-references on :meth:`NetworkRoutes.qos_config` and
 :meth:`NetworkRoutes.sqm_config` below.
 """
 
@@ -196,11 +197,15 @@ class NetworkRoutes:
     async def qos_config(self) -> QosConfig:
         """Return the QoS (traffic-shaping) enable state and mode.
 
-        QoS is one of the features that conflicts with NAT acceleration: the
-        router refuses to enable acceleration while QoS is on (see
+        QoS is one of the FOUR features that conflict with NAT acceleration
+        (Parental Control / QoS / SQM / DPI): the router refuses to enable
+        acceleration while any of them is on (see
         :meth:`~glinet4.glinet.GLinet.network_acceleration_set`). A caller
         deciding whether acceleration can be enabled should check this
-        alongside :meth:`sqm_config`.
+        alongside :meth:`sqm_config` and
+        :meth:`~glinet4.glinet.GLinet.network_acceleration`'s own
+        ``dpi_enabled``/``qos_enabled`` fields; Parental Control has no
+        getter wrapped yet.
         """
         result: QosConfig = await self._transport.request(
             self._payload("call", ["qos", "get_config"])
@@ -234,11 +239,15 @@ class NetworkRoutes:
     async def sqm_config(self) -> SqmConfig:
         """Return the SQM (Smart Queue Management / bufferbloat mitigation) settings.
 
-        SQM is one of the features that conflicts with NAT acceleration: the
-        router refuses to enable acceleration while SQM is on (see
+        SQM is one of the FOUR features that conflict with NAT acceleration
+        (Parental Control / QoS / SQM / DPI): the router refuses to enable
+        acceleration while any of them is on (see
         :meth:`~glinet4.glinet.GLinet.network_acceleration_set`). A caller
         deciding whether acceleration can be enabled should check this
-        alongside :meth:`qos_config`.
+        alongside :meth:`qos_config` and
+        :meth:`~glinet4.glinet.GLinet.network_acceleration`'s own
+        ``dpi_enabled``/``qos_enabled`` fields; Parental Control has no
+        getter wrapped yet.
         """
         result: SqmConfig = await self._transport.request(
             self._payload("call", ["sqm", "get_config"])

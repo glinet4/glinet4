@@ -96,9 +96,14 @@ class ServicesRoutes:
         indicates a conflict, so callers don't loop on re-authentication.
         The router's acknowledgement carries nothing useful and is discarded;
         confirm the change via :meth:`network_acceleration`. To see what
-        might be blocking a re-enable, check
-        :meth:`~glinet4.glinet.GLinet.qos_config` and
-        :meth:`~glinet4.glinet.GLinet.sqm_config`.
+        might be blocking a re-enable: :meth:`network_acceleration` itself
+        already reports two of the four via its own ``dpi_enabled``/
+        ``qos_enabled`` fields (QoS also has its own detailed getter,
+        :meth:`~glinet4.glinet.GLinet.qos_config`); SQM has its own getter,
+        :meth:`~glinet4.glinet.GLinet.sqm_config`. Parental Control has no
+        getter wrapped yet (``parental-control get_config`` is available on
+        the device but not yet exposed by this library), so it cannot
+        currently be ruled out from here.
         """
         current = await self.network_acceleration()
         await self._transport.request(

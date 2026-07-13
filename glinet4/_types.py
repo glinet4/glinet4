@@ -214,10 +214,13 @@ class FlowStatsApp(TypedDict, total=False):
 class NetworkAcceleration(TypedDict, total=False):
     """``network get_netnat_config`` — the NAT/DPI acceleration state.
 
-    ``qos_enabled`` flags whether QoS is currently one of the features
-    blocking acceleration; see :meth:`~glinet4.glinet.GLinet.qos_config` and
-    :meth:`~glinet4.glinet.GLinet.sqm_config` for the two conflicting
-    features' detailed settings.
+    ``dpi_enabled``/``qos_enabled`` flag whether DPI/QoS are currently
+    blocking acceleration -- two of the FOUR conflicting features (Parental
+    Control / QoS / SQM / DPI; see
+    :meth:`~glinet4.glinet.GLinet.network_acceleration_set`). QoS also has
+    its own detailed getter, :meth:`~glinet4.glinet.GLinet.qos_config`, as
+    does SQM, :meth:`~glinet4.glinet.GLinet.sqm_config`. Parental Control has
+    no getter wrapped yet.
     """
 
     enable: bool
