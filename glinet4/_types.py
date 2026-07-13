@@ -350,3 +350,117 @@ class TailscaleConfig(TypedDict, total=False):
     masq: bool
     run_exit_node: bool
     exit_node_ip: str
+
+
+class OpenVpnServerStatus(TypedDict, total=False):
+    """``ovpn-server get_status``.
+
+    On the reference capture (fw 4.9.0, OpenVPN server unconfigured) this is
+    a zeroed structure — ``initialization: False``, ``log: ""``,
+    ``rx_bytes``/``tx_bytes: 0``, ``status: 0``, ``tunnel_ip: ""`` — rather
+    than an error. That is the genuine unconfigured shape.
+    """
+
+    initialization: bool
+    log: str
+    rx_bytes: int
+    status: int
+    tunnel_ip: str
+    tx_bytes: int
+
+
+class OpenVpnServerConfig(TypedDict, total=False):
+    """``ovpn-server get_config``.
+
+    ``dh`` carries the server's Diffie-Hellman parameters (key material);
+    treat it as sensitive and avoid logging it wholesale. ``verb`` is a
+    string on the wire (e.g. ``"3"``), not an int — typed as captured.
+    """
+
+    access_scope: int
+    auth: str
+    cipher: str
+    client_auth: int
+    client_to_client: bool
+    dh: str
+    end: str
+    hmac: bool
+    initialization: bool
+    local_access: bool
+    lzo: bool
+    mask: str
+    mode: str
+    port: int
+    proto: str
+    start: str
+    subnetv4: str
+    subnetv6: str
+    tap_address: str
+    tap_mask: str
+    verb: str
+
+
+class OpenVpnServerSetting(TypedDict, total=False):
+    """``ovpn-server get_setting`` — LAN access and NAT masquerade flags."""
+
+    local_access: bool
+    masq: bool
+
+
+class OpenVpnUser(TypedDict, total=False):
+    """A user entry from ``ovpn-server get_user_list``'s ``user_list``.
+
+    The reference capture's ``user_list`` is empty (no OpenVPN server users
+    configured), so no real record was available to derive per-entry field
+    names from. This TypedDict is intentionally left with no known fields
+    until a populated capture is available; entries the router returns flow
+    through unmodified regardless.
+    """
+
+
+class VpnRouteRules(TypedDict, total=False):
+    """``ovpn-server get_route_list`` — shared shape for VPN server route lists.
+
+    Named generically (not ``OpenVpn*``) because WireGuard's server
+    route-list RPC returns the identical ``ipv4_route_rules``/
+    ``ipv6_route_rules`` envelope, so a future wrapper for it can reuse this
+    type. Both lists are empty in the reference capture (no static routes
+    configured); per-entry field names are unverified, so entries are typed
+    as untyped dicts rather than guessed.
+    """
+
+    ipv4_route_rules: list[dict[str, Any]]
+    ipv6_route_rules: list[dict[str, Any]]
+
+
+class OpenVpnClientGroup(TypedDict, total=False):
+    """A group entry from ``ovpn-client get_group_list``'s ``groups``.
+
+    Represents one imported OpenVPN client provider/profile. ``password``
+    carries the group's stored OpenVPN auth credential when set; treat
+    entries as sensitive and avoid logging them wholesale.
+    """
+
+    askpass: str
+    askpass_exist: bool
+    auth_type: int
+    client_count: int
+    group_id: int
+    group_name: str
+    group_type: int
+    password: str
+    procedure: int
+    show: bool
+    username: str
+    work_mode: str
+
+
+class OpenVpnClientConfig(TypedDict, total=False):
+    """An entry from ``ovpn-client get_all_config_list``'s ``config_list``.
+
+    The reference capture's ``config_list`` is empty (no OpenVPN client
+    profiles imported), so no real record was available to derive per-entry
+    field names from. This TypedDict is intentionally left with no known
+    fields until a populated capture is available; entries the router
+    returns flow through unmodified regardless.
+    """

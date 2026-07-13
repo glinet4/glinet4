@@ -71,6 +71,7 @@ Session: `login`, `router_reachable`. All other methods require login first.
 | Firewall | `firewall_port_forward_list`, `firewall_dmz`, `firewall_wan_access`, `firewall_rule_list` |
 | LED | `led_config`, `led_set_enabled` |
 | WireGuard | `wireguard_client_list`, `wireguard_client_state`, `wireguard_client_start`, `wireguard_client_stop` |
+| OpenVPN | `openvpn_server_status`, `openvpn_server_config`, `openvpn_server_setting`, `openvpn_server_users`, `openvpn_server_routes`, `openvpn_client_groups`, `openvpn_client_configs` |
 | Tailscale | `tailscale_configured`, `tailscale_connection_state`, `tailscale_start`, `tailscale_stop`, `tailscale_auth_url`, `tailscale_exit_node_list`, `tailscale_set_exit_node` |
 
 Responses are typed with `TypedDict`s (see `glinet4/_types.py`); the package ships `py.typed`.

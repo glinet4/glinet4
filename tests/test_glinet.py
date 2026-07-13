@@ -498,6 +498,66 @@ async def test_wireguard_client_state() -> None:
         assert first_status["status"] in [0, 1, 2]
 
 
+async def test_openvpn_server_status() -> None:
+    """Test retrieving OpenVPN server tunnel status."""
+    status = await router.openvpn_server_status()
+    print(status)
+    assert isinstance(status, dict)
+    assert status["initialization"] in [True, False]
+    assert isinstance(status["status"], int)
+
+
+async def test_openvpn_server_config() -> None:
+    """Test retrieving the OpenVPN server configuration."""
+    config = await router.openvpn_server_config()
+    print(config)
+    assert isinstance(config, dict)
+    assert config["client_to_client"] in [True, False]
+    assert isinstance(config.get("port"), int)
+
+
+async def test_openvpn_server_setting() -> None:
+    """Test retrieving OpenVPN server LAN-access/masquerade settings."""
+    setting = await router.openvpn_server_setting()
+    print(setting)
+    assert setting["local_access"] in [True, False]
+    assert setting["masq"] in [True, False]
+
+
+async def test_openvpn_server_users() -> None:
+    """Test retrieving OpenVPN server user-auth entries."""
+    users = await router.openvpn_server_users()
+    print(users)
+    assert isinstance(users, list)
+    if not users:
+        pytest.skip("no OpenVPN server users configured on this router")
+
+
+async def test_openvpn_server_routes() -> None:
+    """Test retrieving OpenVPN server route rules."""
+    routes = await router.openvpn_server_routes()
+    print(routes)
+    assert isinstance(routes.get("ipv4_route_rules", []), list)
+    assert isinstance(routes.get("ipv6_route_rules", []), list)
+
+
+async def test_openvpn_client_groups() -> None:
+    """Test retrieving OpenVPN client groups."""
+    groups = await router.openvpn_client_groups()
+    print(groups)
+    assert isinstance(groups, list)
+    for group in groups:
+        assert "group_id" in group
+        assert "group_name" in group
+
+
+async def test_openvpn_client_configs() -> None:
+    """Test retrieving OpenVPN client configuration entries."""
+    configs = await router.openvpn_client_configs()
+    print(configs)
+    assert isinstance(configs, list)
+
+
 @disruptive
 async def test_wireguard_start() -> None:
     """Test starting the WireGuard client."""

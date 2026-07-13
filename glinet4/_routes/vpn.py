@@ -4,7 +4,17 @@ from typing import TYPE_CHECKING, Any
 
 from semver import Version
 
-from .._types import WireguardClientConfig, WireguardClientStatus
+from .._types import (
+    OpenVpnClientConfig,
+    OpenVpnClientGroup,
+    OpenVpnServerConfig,
+    OpenVpnServerSetting,
+    OpenVpnServerStatus,
+    OpenVpnUser,
+    VpnRouteRules,
+    WireguardClientConfig,
+    WireguardClientStatus,
+)
 
 if TYPE_CHECKING:
     from .._transport import GLinetTransport
@@ -110,3 +120,85 @@ class VpnRoutes:
             return response
         response = await self._transport.request(self._payload("call", ["wg-client", "stop"]))
         return response
+
+    # --- OpenVPN server (read-only) ---------------------------------------
+
+    async def openvpn_server_status(self) -> OpenVpnServerStatus:
+        """Return OpenVPN server tunnel status.
+
+        On a router with the OpenVPN server unconfigured (the reference
+        capture's state) this returns a zeroed structure -- e.g.
+        ``initialization: False``, ``log: ""``, ``rx_bytes``/``tx_bytes: 0``,
+        ``status: 0``, ``tunnel_ip: ""`` -- rather than an error. That is the
+        genuine unconfigured shape, not a failure to fetch.
+        """
+        result: OpenVpnServerStatus = await self._transport.request(
+            self._payload("call", ["ovpn-server", "get_status"])
+        )
+        return result
+
+    async def openvpn_server_config(self) -> OpenVpnServerConfig:
+        """Return the configured OpenVPN server parameters (cipher, subnet, ports, ...)."""
+        result: OpenVpnServerConfig = await self._transport.request(
+            self._payload("call", ["ovpn-server", "get_config"])
+        )
+        return result
+
+    async def openvpn_server_setting(self) -> OpenVpnServerSetting:
+        """Return OpenVPN server LAN-access and NAT masquerade settings."""
+        result: OpenVpnServerSetting = await self._transport.request(
+            self._payload("call", ["ovpn-server", "get_setting"])
+        )
+        return result
+
+    async def openvpn_server_users(self) -> list[OpenVpnUser]:
+        """Return configured OpenVPN server user-auth entries.
+
+        Empty when no OpenVPN server users are configured (the reference
+        capture's state) -- that is the genuine shape, not an error.
+        """
+        response = await self._transport.request(
+            self._payload("call", ["ovpn-server", "get_user_list"])
+        )
+        result: list[OpenVpnUser] = response.get("user_list", [])
+        return result
+
+    async def openvpn_server_routes(self) -> VpnRouteRules:
+        """Return OpenVPN server IPv4/IPv6 static route rules.
+
+        Empty on the reference capture (no static routes configured) --
+        that is the genuine shape, not an error. The return type
+        (:class:`~glinet4._types.VpnRouteRules`) is named generically
+        because WireGuard's server route-list RPC returns the identical
+        envelope.
+        """
+        result: VpnRouteRules = await self._transport.request(
+            self._payload("call", ["ovpn-server", "get_route_list"])
+        )
+        return result
+
+    # --- OpenVPN client (read-only) ----------------------------------------
+
+    async def openvpn_client_groups(self) -> list[OpenVpnClientGroup]:
+        """Return configured OpenVPN client groups (imported providers/profiles).
+
+        ``password`` carries the group's stored OpenVPN auth credential when
+        set -- treat entries as sensitive and avoid logging them wholesale.
+        """
+        response = await self._transport.request(
+            self._payload("call", ["ovpn-client", "get_group_list"])
+        )
+        result: list[OpenVpnClientGroup] = response.get("groups", [])
+        return result
+
+    async def openvpn_client_configs(self) -> list[OpenVpnClientConfig]:
+        """Return all imported OpenVPN client configuration entries.
+
+        Empty when no OpenVPN client profiles are imported (the reference
+        capture's state) -- that is the genuine shape, not an error.
+        """
+        response = await self._transport.request(
+            self._payload("call", ["ovpn-client", "get_all_config_list"])
+        )
+        result: list[OpenVpnClientConfig] = response.get("config_list", [])
+        return result
