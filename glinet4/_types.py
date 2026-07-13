@@ -219,8 +219,8 @@ class NetworkAcceleration(TypedDict, total=False):
     Control / QoS / SQM / DPI; see
     :meth:`~glinet4.glinet.GLinet.network_acceleration_set`). QoS also has
     its own detailed getter, :meth:`~glinet4.glinet.GLinet.qos_config`, as
-    does SQM, :meth:`~glinet4.glinet.GLinet.sqm_config`. Parental Control has
-    no getter wrapped yet.
+    does SQM, :meth:`~glinet4.glinet.GLinet.sqm_config`, and Parental
+    Control, :meth:`~glinet4.glinet.GLinet.parental_control_config`.
     """
 
     enable: bool
@@ -937,3 +937,42 @@ class SqmConfig(TypedDict, total=False):
     enable: bool
     qdisc: str
     upload: int
+
+
+class ParentalControlConfig(TypedDict, total=False):
+    """``parental-control get_config`` — Parental Control enablement and device groups.
+
+    Parental Control is one of the FOUR features that conflict with NAT
+    acceleration (Parental Control / QoS / SQM / DPI; see
+    :meth:`~glinet4.glinet.GLinet.network_acceleration_set`) -- and, unlike
+    the other three, had no getter at all until this one. ``groups`` is
+    empty in the reference capture (no parental-control device groups
+    configured), so its per-entry shape is unverified and typed as
+    ``list[Any]`` rather than guessed; on a configured device each group
+    likely carries a schedule plus per-device rules, including the owner's
+    own blocked-domain lists and named device assignments -- treat entries
+    as identifying/sensitive and avoid logging them wholesale once populated
+    (same caution as this module's ARP/LAN entries and
+    :class:`WireguardPeer`). ``init``'s meaning is undocumented by the
+    router beyond being a bool; kept as captured.
+    """
+
+    enable: bool
+    groups: list[Any]
+    init: bool
+
+
+class ContentFilterConfig(TypedDict, total=False):
+    """``black_white_list get_config`` — the content-filter list's active mode.
+
+    Named for the RPC it wraps (``black_white_list``), not "parental
+    control": this is the block-list/allow-list mode toggle that backs
+    :meth:`~glinet4.glinet.GLinet.client_set_blocked`. A real fw-4.9 device
+    returns ``"black"``, which is also the value that method hardcodes when
+    adding or removing a MAC. The router publishes no schema for ``mode``,
+    so the full set of accepted values is unknown -- an allow-list
+    counterpart is plausible but unconfirmed. Treat ``mode`` as an opaque
+    router-defined string, not a documented enum.
+    """
+
+    mode: str

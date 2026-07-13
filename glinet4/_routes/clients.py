@@ -37,7 +37,9 @@ class ClientsRoutes:
         Adds (``blocked=True``) or removes (``blocked=False``) the MAC from the
         router's black list and restarts the filter service. The client's
         ``blocked`` flag (see :meth:`connected_clients`) reflects the new state
-        on the next poll. Assumes the black/white list is in ``black`` mode.
+        on the next poll. Assumes the black/white list is in ``black`` mode --
+        confirm with
+        :meth:`~glinet4.glinet.GLinet.content_filter_config` if unsure.
         The router's acknowledgement carries nothing useful and is discarded;
         confirm the change via :meth:`blocked_client_macs`.
         """

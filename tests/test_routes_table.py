@@ -305,6 +305,30 @@ CASES: list[RouteCase] = [
         ["upgrade", "get_config", {}],
         {"prompt": False, "upgrade_enable": True},
     ),
+    # --- parental control / content filtering / ACL ----------------------
+    _a(
+        "parental_control_config",
+        ["parental-control", "get_config", {}],
+        {"enable": True, "groups": [], "init": False},
+    ),
+    _a(
+        "content_filter_config",
+        ["black_white_list", "get_config", {}],
+        {"mode": "white"},
+    ),
+    _b(
+        "access_control_groups_happy",
+        "access_control_groups",
+        ["acl", "get_group_list", {}],
+        "groups",
+        [{"id": "grp-example", "name": "Example Group", "enabled": True}],
+    ),
+    _b_missing(
+        "access_control_groups_missing_key",
+        "access_control_groups",
+        ["acl", "get_group_list", {}],
+        [],
+    ),
     # --- OpenVPN server / client ------------------------------------------
     _a(
         "openvpn_server_status",

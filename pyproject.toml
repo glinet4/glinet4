@@ -76,6 +76,12 @@ ignore = [
 
 [tool.pylint.main]
 py-version = "3.11"
+# The live suite is one module by design: every test shares a single logged-in
+# client and a module-scoped event loop, so splitting it would mean duplicating
+# that session. It grows by a few lines per wrapped route, so the default
+# 1000-line cap is a false constraint here -- raise it rather than merge tests
+# together and lose per-method failure granularity.
+max-module-lines = 1500
 
 [tool.pylint.messages_control]
 # import-error is intentionally NOT disabled here: dependencies resolve fine
