@@ -610,3 +610,148 @@ class VpnClientTunnels(TypedDict, total=False):
     default_tunnels: list[VpnClientDefaultTunnel]
     global_enabled: bool
     tunnels: list[dict[str, Any]]
+
+
+class DnsConfig(TypedDict, total=False):
+    """``dns get_config`` — DNS resolution mode and provider settings.
+
+    ``manual_list``, ``proxy_list``, ``secure_manual_list``, and
+    ``servers_list`` are all empty in the reference capture, so their
+    per-entry item type (plain strings vs. structured records) is
+    unverified; typed as ``list[Any]`` rather than guessed. ``server_auto``
+    is non-empty and confirmed as a list of strings.
+    """
+
+    controld_id: str
+    controld_type: int
+    force_dns: bool
+    manual_list: list[Any]
+    mode: str
+    nextdns_id: str
+    override_vpn: bool
+    proto: str
+    proto_manual: str
+    provider: str
+    proxy_list: list[Any]
+    rebind_protection: bool
+    secure_manual_list: list[Any]
+    server_auto: list[str]
+    servers_list: list[Any]
+
+
+class DnsServerEntry(TypedDict, total=False):
+    """A DoH/DoT/DoQ resolver entry inside a :class:`DnsProvider`'s ``server_list``.
+
+    ``address``/``address6`` are the provider's own published resolver IPs
+    (e.g. a filtering-DNS vendor's anycast addresses) — public vendor
+    constants, not data about the caller or its network.
+    """
+
+    address: list[str]
+    address6: list[str]
+    description: str
+    name: str
+    url_doh: str
+    url_doq: str
+    url_dot: str
+
+
+class DnsProvider(TypedDict, total=False):
+    """One entry from ``dns get_info``'s bare list of built-in DNS providers.
+
+    Unlike most list-returning RPCs, ``dns get_info``'s response is a bare
+    list of these records, not an ``{key: [...]}`` envelope. Most providers
+    carry ``server_list`` (see :class:`DnsServerEntry`) and ``sup_proto``;
+    the reference capture's ``nextdns`` entry has only ``provider``/
+    ``sup_proto`` (account-specific, resolved elsewhere), and its ``manual``
+    entry instead carries ``proto_manual``/``secure_manual_list`` describing
+    the caller's own manually-entered servers.
+    """
+
+    provider: str
+    server_list: list[DnsServerEntry]
+    sup_proto: list[str]
+    proto_manual: str
+    secure_manual_list: list[Any]
+
+
+class ArpEntry(TypedDict, total=False):
+    """An entry from ``network get_arp_list``'s ``entries`` — the router's ARP cache.
+
+    Each entry identifies one of the caller's own LAN clients by MAC and IP
+    address (``device`` is the bridge/interface it was seen on, e.g.
+    ``br-lan``). Correct for a library to return — the owner is asking their
+    own router for their own client list — but treat entries as identifying
+    data and avoid logging them wholesale.
+    """
+
+    device: str
+    ip: str
+    mac: str
+
+
+class LanInterface(TypedDict, total=False):
+    """An entry from ``lan get_config_list``'s ``interfaces`` — one LAN/guest/IoT segment's DHCP config.
+
+    Each entry describes one of the router's own network segments (DHCP
+    range, gateway, subnet) rather than an individual client, but together
+    they map the caller's LAN topology — treat entries as identifying data
+    and avoid logging them wholesale. ``transfer_enable``/``wan_isolate``
+    are present only on the reference capture's ``guest``/``iot`` entries,
+    not its primary ``lan`` entry. ``lpr``'s meaning is not documented by
+    the router; kept as captured (empty in the reference capture).
+    """
+
+    ap_isolate: int
+    dns: list[str]
+    enable: int
+    end: str
+    gateway: str
+    interface: str
+    ip: str
+    leasetime: str
+    lpr: list[Any]
+    netmask: str
+    start: str
+    transfer_enable: int
+    wan_isolate: int
+
+
+class Ipv6Config(TypedDict, total=False):
+    """``ipv6 get_ipv6`` — IPv6 enablement and LAN addressing mode."""
+
+    enable: bool
+    lan_dns_mode: bool
+    lan_mode: str
+
+
+class DdnsConfig(TypedDict, total=False):
+    """``ddns get_config`` — GL.iNet cloud DDNS enrollment.
+
+    ``device_id`` is the router's DDNS device identifier (used to address it
+    via GL.iNet's DDNS service) — not a secret credential, but a
+    device-identifying value worth treating with the same care as other
+    identifying fields in this module.
+    """
+
+    device_id: str
+    enable_ddns: bool
+
+
+class DdnsInterfaceAddress(TypedDict, total=False):
+    """A per-interface entry inside ``ddns get_status``'s ``ips``."""
+
+    interface: str
+    ip: list[str]
+
+
+class DdnsStatus(TypedDict, total=False):
+    """``ddns get_status`` — the DDNS-mapped address and per-interface IPs.
+
+    ``ddns`` is the router's current public IP as resolved via its DDNS
+    hostname.
+    """
+
+    ddns: str
+    ips: list[DdnsInterfaceAddress]
+    status: int

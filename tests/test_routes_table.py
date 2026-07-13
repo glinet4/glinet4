@@ -556,6 +556,119 @@ CASES: list[RouteCase] = [
             "tunnels": [],
         },
     ),
+    # --- DNS / ARP / LAN / IPv6 / DDNS ---------------------------------------
+    _a(
+        "dns_config",
+        ["dns", "get_config"],
+        {
+            "controld_id": "",
+            "controld_type": 1,
+            "force_dns": False,
+            "manual_list": [],
+            "mode": "auto",
+            "nextdns_id": "",
+            "override_vpn": True,
+            "proto": "",
+            "proto_manual": "",
+            "provider": "",
+            "proxy_list": [],
+            "rebind_protection": False,
+            "secure_manual_list": [],
+            "server_auto": ["wan 198.51.100.10,198.51.100.20"],
+            "servers_list": [],
+        },
+    ),
+    _a(
+        "dns_providers",
+        ["dns", "get_info"],
+        [
+            {
+                "provider": "example-filter-vendor",
+                "server_list": [
+                    {
+                        "address": ["198.51.100.1", "198.51.100.2"],
+                        "address6": ["2001:db8::1", "2001:db8::2"],
+                        "description": "Unfiltered",
+                        "name": "p0",
+                        "url_doh": "https://doh.example.com/p0",
+                        "url_doq": "quic://p0.example.com",
+                        "url_dot": "tls://p0.example.com",
+                    }
+                ],
+                "sup_proto": ["dot", "doh", "doq"],
+            },
+            {"provider": "example-account-vendor", "sup_proto": ["dot", "doh"]},
+        ],
+    ),
+    _b(
+        "arp_table_happy",
+        "arp_table",
+        ["network", "get_arp_list"],
+        "entries",
+        [
+            {"device": "br-lan", "ip": "192.168.8.50", "mac": "AA:BB:CC:DD:EE:01"},
+            {"device": "eth1", "ip": "203.0.113.5", "mac": "AA:BB:CC:DD:EE:02"},
+        ],
+    ),
+    _b_missing("arp_table_missing_key", "arp_table", ["network", "get_arp_list"], []),
+    _b(
+        "lan_interfaces_happy",
+        "lan_interfaces",
+        ["lan", "get_config_list"],
+        "interfaces",
+        [
+            {
+                "ap_isolate": 0,
+                "dns": [],
+                "enable": 1,
+                "end": "192.168.8.254",
+                "gateway": "",
+                "interface": "lan",
+                "ip": "192.168.8.1",
+                "leasetime": "720m",
+                "lpr": [],
+                "netmask": "255.255.255.0",
+                "start": "192.168.8.20",
+            },
+            {
+                "ap_isolate": 1,
+                "dns": [],
+                "enable": 0,
+                "end": "192.168.9.249",
+                "gateway": "",
+                "interface": "guest",
+                "ip": "192.168.9.1",
+                "leasetime": "12h",
+                "lpr": [],
+                "netmask": "255.255.255.0",
+                "start": "192.168.9.100",
+                "transfer_enable": 0,
+            },
+        ],
+    ),
+    _b_missing("lan_interfaces_missing_key", "lan_interfaces", ["lan", "get_config_list"], []),
+    _a(
+        "ipv6_config",
+        ["ipv6", "get_ipv6"],
+        {"enable": False, "lan_dns_mode": True, "lan_mode": "nat6"},
+    ),
+    _a(
+        "ddns_config",
+        ["ddns", "get_config"],
+        {"device_id": "example-device-id", "enable_ddns": True},
+    ),
+    _a(
+        "ddns_status",
+        ["ddns", "get_status"],
+        {
+            "ddns": "203.0.113.9",
+            "ips": [
+                {"interface": "wan", "ip": ["203.0.113.9"]},
+                {"interface": "wan6", "ip": []},
+            ],
+            "status": 0,
+        },
+    ),
 ]
 
 

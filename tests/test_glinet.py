@@ -472,6 +472,82 @@ async def test_network_interfaces_status() -> None:
         assert entry["online"] in [True, False]
 
 
+async def test_dns_config() -> None:
+    """Test retrieving the DNS resolution mode and provider settings."""
+    config = await router.dns_config()
+    print(config)
+    assert isinstance(config, dict)
+    assert "mode" in config
+
+
+async def test_dns_providers() -> None:
+    """Test retrieving the built-in DNS provider catalogue."""
+    providers = await router.dns_providers()
+    print(providers)
+    assert isinstance(providers, list)
+    assert len(providers) > 0
+    for provider in providers:
+        assert "provider" in provider
+
+
+async def test_arp_table() -> None:
+    """Test retrieving the router's ARP cache.
+
+    Entries are the caller's own LAN clients' MAC/IP addresses -- identifying
+    data -- so only the entry count is printed, not the raw entries.
+    """
+    entries = await router.arp_table()
+    print(f"{len(entries)} ARP entries")
+    assert isinstance(entries, list)
+    for entry in entries:
+        assert "mac" in entry
+        assert "ip" in entry
+
+
+async def test_lan_interfaces() -> None:
+    """Test retrieving the router's LAN/guest/IoT network segment configs.
+
+    Entries map the caller's LAN topology -- identifying data -- so only the
+    interface count is printed, not the raw entries.
+    """
+    interfaces = await router.lan_interfaces()
+    print(f"{len(interfaces)} LAN interfaces")
+    assert isinstance(interfaces, list)
+    assert len(interfaces) > 0
+    for iface in interfaces:
+        assert "interface" in iface
+        assert "netmask" in iface
+
+
+async def test_ipv6_config() -> None:
+    """Test retrieving IPv6 enablement and LAN addressing mode."""
+    config = await router.ipv6_config()
+    print(config)
+    assert config["enable"] in [True, False]
+    assert "lan_mode" in config
+
+
+async def test_ddns_config() -> None:
+    """Test retrieving the GL.iNet cloud DDNS enrollment.
+
+    ``device_id`` is a device-identifying value (see
+    :class:`~glinet4._types.DdnsConfig`), so it is excluded from the printed
+    output.
+    """
+    config = await router.ddns_config()
+    print({k: v for k, v in config.items() if k != "device_id"})
+    assert config["enable_ddns"] in [True, False]
+    assert "device_id" in config
+
+
+async def test_ddns_status() -> None:
+    """Test retrieving the current DDNS-mapped address and per-interface IPs."""
+    status = await router.ddns_status()
+    print(status)
+    assert isinstance(status.get("ips", []), list)
+    assert isinstance(status.get("status"), int)
+
+
 async def test_wireguard_client_list() -> None:
     """Test retrieving the list of WireGuard clients."""
     response = await router.wireguard_client_list()
