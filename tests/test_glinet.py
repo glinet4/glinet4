@@ -473,9 +473,15 @@ async def test_network_interfaces_status() -> None:
 
 
 async def test_dns_config() -> None:
-    """Test retrieving the DNS resolution mode and provider settings."""
+    """Test retrieving the DNS resolution mode and provider settings.
+
+    ``server_auto`` (upstream DNS servers) and, on a device where they're
+    set, ``nextdns_id``/``controld_id`` (NextDNS/ControlD account
+    identifiers) are excluded from the printed output.
+    """
     config = await router.dns_config()
-    print(config)
+    identifying = {"server_auto", "nextdns_id", "controld_id"}
+    print({k: v for k, v in config.items() if k not in identifying})
     assert isinstance(config, dict)
     assert "mode" in config
 
@@ -541,9 +547,14 @@ async def test_ddns_config() -> None:
 
 
 async def test_ddns_status() -> None:
-    """Test retrieving the current DDNS-mapped address and per-interface IPs."""
+    """Test retrieving the current DDNS-mapped address and per-interface IPs.
+
+    ``ddns`` is the router's WAN public IP, and each ``ips[]`` entry's ``ip``
+    is also a public IP -- only the status code and interface count are
+    printed, not the raw addresses.
+    """
     status = await router.ddns_status()
-    print(status)
+    print(f"status={status.get('status')}, {len(status.get('ips', []))} interface(s)")
     assert isinstance(status.get("ips", []), list)
     assert isinstance(status.get("status"), int)
 
