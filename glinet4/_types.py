@@ -407,17 +407,6 @@ class OpenVpnServerSetting(TypedDict, total=False):
     masq: bool
 
 
-class OpenVpnUser(TypedDict, total=False):
-    """A user entry from ``ovpn-server get_user_list``'s ``user_list``.
-
-    The reference capture's ``user_list`` is empty (no OpenVPN server users
-    configured), so no real record was available to derive per-entry field
-    names from. This TypedDict is intentionally left with no known fields
-    until a populated capture is available; entries the router returns flow
-    through unmodified regardless.
-    """
-
-
 class VpnRouteRules(TypedDict, total=False):
     """``ovpn-server get_route_list`` — shared shape for VPN server route lists.
 
@@ -453,14 +442,3 @@ class OpenVpnClientGroup(TypedDict, total=False):
     show: bool
     username: str
     work_mode: str
-
-
-class OpenVpnClientConfig(TypedDict, total=False):
-    """An entry from ``ovpn-client get_all_config_list``'s ``config_list``.
-
-    The reference capture's ``config_list`` is empty (no OpenVPN client
-    profiles imported), so no real record was available to derive per-entry
-    field names from. This TypedDict is intentionally left with no known
-    fields until a populated capture is available; entries the router
-    returns flow through unmodified regardless.
-    """

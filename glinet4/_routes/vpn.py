@@ -5,12 +5,10 @@ from typing import TYPE_CHECKING, Any
 from semver import Version
 
 from .._types import (
-    OpenVpnClientConfig,
     OpenVpnClientGroup,
     OpenVpnServerConfig,
     OpenVpnServerSetting,
     OpenVpnServerStatus,
-    OpenVpnUser,
     VpnRouteRules,
     WireguardClientConfig,
     WireguardClientStatus,
@@ -151,16 +149,17 @@ class VpnRoutes:
         )
         return result
 
-    async def openvpn_server_users(self) -> list[OpenVpnUser]:
+    async def openvpn_server_users(self) -> list[dict[str, Any]]:
         """Return configured OpenVPN server user-auth entries.
 
         Empty when no OpenVPN server users are configured (the reference
-        capture's state) -- that is the genuine shape, not an error.
+        capture's state) -- that is the genuine shape, not an error. Entries
+        are untyped dicts pending a capture from a configured device.
         """
         response = await self._transport.request(
             self._payload("call", ["ovpn-server", "get_user_list"])
         )
-        result: list[OpenVpnUser] = response.get("user_list", [])
+        result: list[dict[str, Any]] = response.get("user_list", [])
         return result
 
     async def openvpn_server_routes(self) -> VpnRouteRules:
@@ -191,14 +190,15 @@ class VpnRoutes:
         result: list[OpenVpnClientGroup] = response.get("groups", [])
         return result
 
-    async def openvpn_client_configs(self) -> list[OpenVpnClientConfig]:
+    async def openvpn_client_configs(self) -> list[dict[str, Any]]:
         """Return all imported OpenVPN client configuration entries.
 
         Empty when no OpenVPN client profiles are imported (the reference
-        capture's state) -- that is the genuine shape, not an error.
+        capture's state) -- that is the genuine shape, not an error. Entries
+        are untyped dicts pending a capture from a configured device.
         """
         response = await self._transport.request(
             self._payload("call", ["ovpn-client", "get_all_config_list"])
         )
-        result: list[OpenVpnClientConfig] = response.get("config_list", [])
+        result: list[dict[str, Any]] = response.get("config_list", [])
         return result
