@@ -1,4 +1,14 @@
-"""DNS, ARP, LAN, IPv6, and DDNS route methods for :class:`glinet4.glinet.GLinet` (mixin)."""
+"""DNS, ARP, LAN, IPv6, DDNS, multi-WAN, repeater, and tethering route methods for
+:class:`glinet4.glinet.GLinet` (mixin).
+
+Multi-WAN (``kmwan``), repeater, and tethering are grouped here alongside the
+Task-1 network services rather than split across ``wan.py``/new modules:
+``kmwan`` is WAN-adjacent but only ``kmwan`` itself (not repeater or
+tethering) would fit ``wan.py``, and neither repeater (WiFi client mode) nor
+tethering (modem sharing) is a natural fit for any other existing mixin, so
+keeping all seven read-only getters in one module avoids fragmenting a small,
+thematically-related read surface across several near-empty ones.
+"""
 
 from typing import TYPE_CHECKING, Any
 
@@ -10,6 +20,12 @@ from .._types import (
     DnsProvider,
     Ipv6Config,
     LanInterface,
+    MultiWanConfig,
+    MultiWanStatus,
+    RepeaterConfig,
+    RepeaterStatus,
+    SavedAp,
+    TetheringStatus,
 )
 
 if TYPE_CHECKING:
@@ -17,7 +33,7 @@ if TYPE_CHECKING:
 
 
 class NetworkRoutes:
-    """DNS/ARP/LAN/IPv6/DDNS RPCs, mixed into :class:`glinet4.glinet.GLinet`."""
+    """DNS/ARP/LAN/IPv6/DDNS/multi-WAN/repeater/tethering RPCs, mixed into :class:`glinet4.glinet.GLinet`."""
 
     if TYPE_CHECKING:
         _transport: GLinetTransport
@@ -55,9 +71,7 @@ class NetworkRoutes:
         their own router for their own client list -- but treat entries as
         identifying data and avoid logging them wholesale.
         """
-        response = await self._transport.request(
-            self._payload("call", ["network", "get_arp_list"])
-        )
+        response = await self._transport.request(self._payload("call", ["network", "get_arp_list"]))
         result: list[ArpEntry] = response.get("entries", [])
         return result
 
@@ -69,9 +83,7 @@ class NetworkRoutes:
         together they map the caller's LAN topology -- treat entries as
         identifying data and avoid logging them wholesale.
         """
-        response = await self._transport.request(
-            self._payload("call", ["lan", "get_config_list"])
-        )
+        response = await self._transport.request(self._payload("call", ["lan", "get_config_list"]))
         result: list[LanInterface] = response.get("interfaces", [])
         return result
 
@@ -93,5 +105,80 @@ class NetworkRoutes:
         """Return the current DDNS-mapped address and per-interface IPs."""
         result: DdnsStatus = await self._transport.request(
             self._payload("call", ["ddns", "get_status"])
+        )
+        return result
+
+    async def multiwan_config(self) -> MultiWanConfig:
+        """Return the router's multi-WAN interface failover/load-balance configuration."""
+        result: MultiWanConfig = await self._transport.request(
+            self._payload("call", ["kmwan", "get_config"])
+        )
+        return result
+
+    async def multiwan_status(self) -> MultiWanStatus:
+        """Return per-interface multi-WAN health status."""
+        result: MultiWanStatus = await self._transport.request(
+            self._payload("call", ["kmwan", "get_status"])
+        )
+        return result
+
+    async def repeater_config(self) -> RepeaterConfig:
+        """Return the router's WiFi-repeater (client-mode) settings.
+
+        ``macaddr`` is the repeater radio's own MAC address, not a connected
+        client's.
+        """
+        result: RepeaterConfig = await self._transport.request(
+            self._payload("call", ["repeater", "get_config"])
+        )
+        return result
+
+    async def repeater_status(self) -> RepeaterStatus:
+        """Return the router's WiFi-repeater connection state."""
+        result: RepeaterStatus = await self._transport.request(
+            self._payload("call", ["repeater", "get_status"])
+        )
+        return result
+
+    async def repeater_saved_aps(self) -> list[SavedAp]:
+        """Return the WiFi networks the repeater has saved credentials for.
+
+        Each entry names an access point the caller's router has previously
+        connected to as a repeater client (``ssid``, and the associating MAC
+        inside ``macaddr``) -- identifying data about the caller's own
+        devices and connection history; avoid logging entries wholesale (see
+        :class:`~glinet4._types.SavedAp`).
+        """
+        response = await self._transport.request(
+            self._payload("call", ["repeater", "get_saved_ap_list"])
+        )
+        result: list[SavedAp] = response.get("res", [])
+        return result
+
+    async def tethering_status(self) -> TetheringStatus:
+        """Return USB/Bluetooth tethering connection state.
+
+        ``devices`` is empty in the reference capture (no tethering client
+        connected) -- once populated it likely carries per-device
+        identifying info (e.g. a connected phone's MAC); treat entries as
+        identifying data and avoid logging them wholesale.
+        """
+        result: TetheringStatus = await self._transport.request(
+            self._payload("call", ["tethering", "get_status"])
+        )
+        return result
+
+    async def tethering_config(self) -> list[dict[str, Any]]:
+        """Return the router's configured tethering (USB/Bluetooth modem) profiles.
+
+        Unlike most list-returning RPCs, ``tethering get_config``'s response
+        is a bare list, not an ``{key: [...]}`` envelope (mirrors ``dns
+        get_info``, see :meth:`dns_providers`). Empty when no tethering
+        profiles are configured (the reference capture's state) -- that is
+        the genuine shape, not an error. Entries are untyped dicts pending a
+        capture from a device with tethering profiles configured.
+        """
+        result: list[dict[str, Any]] = await self._transport.request(
+            self._payload("call", ["tethering", "get_config"])
         )
         return result

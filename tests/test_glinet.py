@@ -548,6 +548,84 @@ async def test_ddns_status() -> None:
     assert isinstance(status.get("status"), int)
 
 
+async def test_multiwan_config() -> None:
+    """Test retrieving the multi-WAN interface failover/load-balance configuration."""
+    config = await router.multiwan_config()
+    print(config)
+    assert isinstance(config.get("interfaces", []), list)
+    assert isinstance(config.get("mode"), int)
+    for iface in config.get("interfaces", []):
+        assert "interface" in iface
+        assert "metric" in iface
+
+
+async def test_multiwan_status() -> None:
+    """Test retrieving per-interface multi-WAN health status."""
+    status = await router.multiwan_status()
+    print(status)
+    assert isinstance(status.get("interfaces", []), list)
+    for iface in status.get("interfaces", []):
+        assert "interface" in iface
+        assert "status_v4" in iface
+
+
+async def test_repeater_config() -> None:
+    """Test retrieving the WiFi-repeater (client-mode) settings.
+
+    ``macaddr`` is the repeater radio's own MAC address -- identifying data
+    -- so it is excluded from the printed output.
+    """
+    config = await router.repeater_config()
+    print({k: v for k, v in config.items() if k != "macaddr"})
+    assert config["auto"] in [True, False]
+    assert "macaddr" in config
+
+
+async def test_repeater_status() -> None:
+    """Test retrieving the WiFi-repeater connection state."""
+    status = await router.repeater_status()
+    print(status)
+    assert "state" in status
+    assert "state_s" in status
+
+
+async def test_repeater_saved_aps() -> None:
+    """Test retrieving the WiFi networks the repeater has saved credentials for.
+
+    Entries carry SSIDs and MACs of the caller's own devices -- identifying
+    data -- so only the entry count is printed, not the raw entries.
+    """
+    saved_aps = await router.repeater_saved_aps()
+    print(f"{len(saved_aps)} saved APs")
+    assert isinstance(saved_aps, list)
+    for entry in saved_aps:
+        assert "ssid" in entry
+        assert "macaddr" in entry
+
+
+async def test_tethering_status() -> None:
+    """Test retrieving USB/Bluetooth tethering connection state.
+
+    ``devices`` may carry identifying info about a connected tethering
+    client -- only the device count is printed, not raw entries.
+    """
+    status = await router.tethering_status()
+    print(f"status={status.get('status')}, {len(status.get('devices', []))} device(s)")
+    assert isinstance(status.get("devices", []), list)
+    assert isinstance(status.get("status"), int)
+
+
+async def test_tethering_config() -> None:
+    """Test retrieving the router's configured tethering profiles.
+
+    Returns a bare list (not an envelope); empty when no tethering profiles
+    are configured.
+    """
+    config = await router.tethering_config()
+    print(config)
+    assert isinstance(config, list)
+
+
 async def test_wireguard_client_list() -> None:
     """Test retrieving the list of WireGuard clients."""
     response = await router.wireguard_client_list()

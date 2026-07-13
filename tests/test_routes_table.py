@@ -669,6 +669,124 @@ CASES: list[RouteCase] = [
             "status": 0,
         },
     ),
+    # --- multi-WAN / repeater / tethering ------------------------------------
+    _a(
+        "multiwan_config",
+        ["kmwan", "get_config"],
+        {
+            "interfaces": [
+                {
+                    "enable_check": True,
+                    "enable_ssl": False,
+                    "interface": "wan",
+                    "metric": 10,
+                    "track_ipv4": ["198.51.100.1", "198.51.100.2"],
+                    "track_ipv6": ["2001:db8::1"],
+                    "track_method": 0,
+                    "track_mode": 1,
+                    "track_proto": 0,
+                    "weight": 1,
+                },
+                {
+                    "enable_check": True,
+                    "enable_ssl": False,
+                    "interface": "wwan",
+                    "metric": 20,
+                    "track_ipv4": ["198.51.100.1", "198.51.100.2"],
+                    "track_ipv6": ["2001:db8::1"],
+                    "track_method": 0,
+                    "track_mode": 1,
+                    "track_proto": 0,
+                    "weight": 1,
+                },
+            ],
+            "mode": 0,
+        },
+    ),
+    _a(
+        "multiwan_status",
+        ["kmwan", "get_status"],
+        {
+            "interfaces": [
+                {"interface": "wan", "status_v4": 0, "status_v6": 1},
+                {"interface": "wwan", "status_v4": 1, "status_v6": 1},
+            ]
+        },
+    ),
+    _a(
+        "repeater_config",
+        ["repeater", "get_config"],
+        {
+            "auto": True,
+            "dfs_support": True,
+            "macaddr": "02:00:00:AA:BB:CC",
+            "smart_reconnect": True,
+        },
+    ),
+    _a(
+        "repeater_status",
+        ["repeater", "get_status"],
+        {
+            "portal_info": {
+                "auth_mode": 0,
+                "password": "REDACTED",
+                "username": "",
+                "voucher": "",
+            },
+            "state": 0,
+            "state_s": "idle",
+        },
+    ),
+    _b(
+        "repeater_saved_aps_happy",
+        "repeater_saved_aps",
+        ["repeater", "get_saved_ap_list"],
+        "res",
+        [
+            {
+                "auto_portal": False,
+                "disguise": False,
+                "key": "REDACTED",
+                "macaddr": {
+                    "macaddr": "02:00:00:11:22:33",
+                    "mode": "random",
+                    "update": "none",
+                },
+                "manual": True,
+                "protocol": "dhcp",
+                "ssid": "example-ssid-1",
+            },
+            {
+                "auto_portal": False,
+                "disguise": False,
+                "key": "REDACTED",
+                "macaddr": {
+                    "macaddr": "02:00:00:44:55:66",
+                    "mode": "random",
+                    "update": "none",
+                },
+                "manual": False,
+                "protocol": "dhcp",
+                "ssid": "example-ssid-2",
+            },
+        ],
+    ),
+    _b_missing(
+        "repeater_saved_aps_missing_key",
+        "repeater_saved_aps",
+        ["repeater", "get_saved_ap_list"],
+        [],
+    ),
+    _a(
+        "tethering_status",
+        ["tethering", "get_status"],
+        {"devices": [], "status": 0},
+    ),
+    _a(
+        "tethering_config",
+        ["tethering", "get_config"],
+        [],
+    ),
 ]
 
 

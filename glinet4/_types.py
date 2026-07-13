@@ -755,3 +755,140 @@ class DdnsStatus(TypedDict, total=False):
     ddns: str
     ips: list[DdnsInterfaceAddress]
     status: int
+
+
+class MultiWanInterfaceConfig(TypedDict, total=False):
+    """One entry from ``kmwan get_config``'s ``interfaces`` — one WAN-capable interface's failover config.
+
+    ``track_ipv4``/``track_ipv6`` are the addresses the router pings to
+    decide whether this interface is up (connectivity-check targets — the
+    reference capture's defaults are public DNS resolvers, but the field is
+    router-configurable, so no meaning beyond "check target" is assumed).
+    ``metric``/``weight`` set failover priority and load-balance weighting.
+    ``track_method``/``track_mode``/``track_proto`` are undocumented by the
+    router beyond being ints; kept as captured.
+    """
+
+    enable_check: bool
+    enable_ssl: bool
+    interface: str
+    metric: int
+    track_ipv4: list[str]
+    track_ipv6: list[str]
+    track_method: int
+    track_mode: int
+    track_proto: int
+    weight: int
+
+
+class MultiWanConfig(TypedDict, total=False):
+    """``kmwan get_config`` — multi-WAN interface failover/load-balance configuration.
+
+    ``mode`` selects the router's multi-WAN strategy (e.g. failover vs.
+    load-balance) as an int; undocumented by the router beyond that, kept as
+    captured.
+    """
+
+    interfaces: list[MultiWanInterfaceConfig]
+    mode: int
+
+
+class MultiWanInterfaceStatus(TypedDict, total=False):
+    """One entry from ``kmwan get_status``'s ``interfaces`` — one interface's multi-WAN health.
+
+    ``status_v4``/``status_v6`` are per-protocol health state as an int;
+    undocumented by the router beyond that, kept as captured.
+    """
+
+    interface: str
+    status_v4: int
+    status_v6: int
+
+
+class MultiWanStatus(TypedDict, total=False):
+    """``kmwan get_status`` — per-interface multi-WAN health status."""
+
+    interfaces: list[MultiWanInterfaceStatus]
+
+
+class RepeaterConfig(TypedDict, total=False):
+    """``repeater get_config`` — WiFi-repeater (client-mode) settings.
+
+    ``macaddr`` is the repeater radio's own MAC address, not a connected
+    client's.
+    """
+
+    auto: bool
+    dfs_support: bool
+    macaddr: str
+    smart_reconnect: bool
+
+
+class RepeaterPortalInfo(TypedDict, total=False):
+    """The ``portal_info`` object inside ``repeater get_status`` — captive-portal login state.
+
+    ``password`` is already redacted by the router in the reference capture
+    (returned as a placeholder string, not the live credential) — treat it
+    as sensitive regardless.
+    """
+
+    auth_mode: int
+    password: str
+    username: str
+    voucher: str
+
+
+class RepeaterStatus(TypedDict, total=False):
+    """``repeater get_status`` — WiFi-repeater connection state."""
+
+    portal_info: RepeaterPortalInfo
+    state: int
+    state_s: str
+
+
+class SavedApMacAddr(TypedDict, total=False):
+    """The nested ``macaddr`` object inside a :class:`SavedAp` entry — MAC-randomization settings.
+
+    ``macaddr`` is the MAC the repeater uses/used when associating with this
+    saved AP; ``mode``/``update`` describe the randomization policy (e.g.
+    ``"random"``/``"none"`` in the reference capture) and are otherwise
+    undocumented by the router.
+    """
+
+    macaddr: str
+    mode: str
+    update: str
+
+
+class SavedAp(TypedDict, total=False):
+    """An entry from ``repeater get_saved_ap_list``'s ``res`` — a WiFi network the repeater has saved.
+
+    Each entry names an access point the caller's router has previously
+    connected to as a repeater client (``ssid``, and the associating MAC
+    inside ``macaddr``) — identifying data about the caller's own devices
+    and connection history; avoid logging entries wholesale. ``key`` carries
+    the saved network's WiFi key; the reference capture shows the router
+    already redacts it (a placeholder string, not the live credential), but
+    treat it as sensitive regardless.
+    """
+
+    auto_portal: bool
+    disguise: bool
+    key: str
+    macaddr: SavedApMacAddr
+    manual: bool
+    protocol: str
+    ssid: str
+
+
+class TetheringStatus(TypedDict, total=False):
+    """``tethering get_status`` — USB/Bluetooth tethering connection state.
+
+    ``devices`` is empty in the reference capture (no tethering client
+    connected), so its per-entry shape is unverified — likely per-device
+    identifying info (e.g. a connected phone's MAC), so treat entries as
+    identifying data and avoid logging them wholesale once populated.
+    """
+
+    devices: list[dict[str, Any]]
+    status: int
