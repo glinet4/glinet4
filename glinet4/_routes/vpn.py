@@ -242,10 +242,12 @@ class VpnRoutes:
         """Return configured WireGuard server peers.
 
         Each entry is the owner's own peer record, including key material
-        (``public_key``, ``private_key``, and ``presharedkey_enable``) and
-        its ``end_point``. The router returning callers their own peers'
-        credentials is expected behaviour for a library, but treat entries
-        as sensitive and avoid logging them wholesale.
+        (``public_key``, ``private_key``) and its ``end_point``.
+        ``presharedkey_enable`` is a boolean flag indicating whether a
+        preshared key is configured for the peer, not the key itself. The
+        router returning callers their own peers' credentials is expected
+        behaviour for a library, but treat entries as sensitive and avoid
+        logging them wholesale.
         """
         response = await self._transport.request(
             self._payload("call", ["wg-server", "get_peer_list"])
