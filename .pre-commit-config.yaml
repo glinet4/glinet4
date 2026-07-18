@@ -36,6 +36,12 @@ repos:
         language: system
         types: [python]
         require_serial: true
+      - id: codespell
+        name: codespell
+        entry: uv run codespell --write-changes
+        language: system
+        pass_filenames: false
+        always_run: true
   - repo: https://github.com/python-jsonschema/check-jsonschema
     rev: 0.37.3
     hooks:
