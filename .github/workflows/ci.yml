@@ -24,7 +24,9 @@ jobs:
         with:
           python-version: "3.13"
       - name: Install dependencies
-        run: uv sync
+        # --locked fails CI if uv.lock has drifted from pyproject.toml, so a PR
+        # that edits dependencies without running `uv lock` cannot merge green.
+        run: uv sync --locked
       - name: Cache prek
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -48,6 +50,6 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
-        run: uv sync
+        run: uv sync --locked
       - name: Run tests
-        run: uv run pytest -v --cov=glinet4 --cov-fail-under=85
+        run: uv run --locked pytest -v --cov=glinet4 --cov-fail-under=85

@@ -38,6 +38,7 @@ Issues = "https://github.com/glinet4/glinet4/issues"
 
 [dependency-groups]
 dev = [
+    "codespell>=2.4.2",
     "mypy>=1.11",
     "pylint>=4",
     "pytest>=7.2",
@@ -109,3 +110,10 @@ mypy_path = ["stubs"]
 # even with a py.typed marker; `stubs/passlib/hash.pyi` types the three
 # crypt handlers glinet4._transport actually imports, so no
 # ignore_missing_imports override is needed for passlib.
+
+[tool.codespell]
+quiet-level = 2
+# CHANGELOG.md is generated/owned by release-please; uv.lock and JSON are data.
+skip = "uv.lock,./.git/*,./.mypy_cache/*,./.ruff_cache/*,*.json,CHANGELOG.md"
+# "unparseable" is a deliberate spelling used in firmware-facing error messages.
+ignore-words-list = "unparseable"

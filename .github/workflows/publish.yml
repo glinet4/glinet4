@@ -3,6 +3,9 @@ on:
   push:
     branches: [main]
 permissions: {}
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false # never cancel a release mid-cut (tag/publish/lock push)
 jobs:
   # Runs with a short-lived GitHub App token (glinet4-release-bot), NOT the
   # workflow's GITHUB_TOKEN: events created by GITHUB_TOKEN never trigger other
@@ -10,6 +13,11 @@ jobs:
   # the normal pull_request checks, so release PRs satisfy the main ruleset.
   release-please:
     runs-on: ubuntu-latest
+    # Gate the release-bot private key behind a dedicated environment so it is
+    # only reachable from a release run (set the environment's deployment-branch
+    # policy to `main` only, and DO NOT add required reviewers or the automated
+    # release PR will block waiting for approval).
+    environment: release
     permissions: {} # the app token carries the write authority
     outputs:
       release_created: ${{ steps.rp.outputs.release_created }}
@@ -38,6 +46,7 @@ jobs:
     needs: release-please
     if: needs.release-please.outputs.pr != ''
     runs-on: ubuntu-latest
+    environment: release # same release-bot secret, same environment gate
     permissions: {} # the app token carries the write authority
     steps:
       - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0

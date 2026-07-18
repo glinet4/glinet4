@@ -84,7 +84,7 @@ Todo list:
 - [x] Decide on useful endpoints to expose
 - [ ] Expose said endpoints (ongoing — see the table above and glinet4/glinet4 issues)
 - [x] Package correctly
-- [x] Test that dev enviroment is re-producable
+- [x] Test that dev environment is reproducible
 - [x] Publish on pip
 - [x] Static typing
 
