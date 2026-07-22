@@ -485,6 +485,28 @@ async def test_firewall_set_dmz_explicit_ip_skips_read(glinet):
     )
 
 
+async def test_firewall_set_dmz_disable_ignores_dest_ip(glinet):
+    # A dest_ip passed alongside disable is meaningless and must be dropped, so
+    # the write is unambiguously "turn the DMZ off".
+    glinet._transport.request.return_value = {}
+    await glinet.firewall_set_dmz(enabled=False, dest_ip="10.0.0.5")
+    glinet._transport.request.assert_awaited_once()
+    last_call = glinet._transport.build_sid_payload.call_args_list[-1]
+    assert last_call.args == ("call", ["firewall", "set_dmz", {"enabled": False}], "SID")
+
+
+async def test_firewall_set_dmz_enable_without_resolvable_target_raises(glinet):
+    # Enabling with neither an explicit IP nor a stored dmz_ip is an invalid
+    # write; raise instead of sending an ambiguous enable-with-no-target.
+    glinet._transport.request.return_value = {"enabled": False}  # get_dmz, no dmz_ip
+    with pytest.raises(ValueError, match="destination IP"):
+        await glinet.firewall_set_dmz(enabled=True)
+    # Only the get_dmz read may have happened; no set_dmz write.
+    glinet._transport.request.assert_awaited_once()
+    last_call = glinet._transport.build_sid_payload.call_args_list[-1]
+    assert last_call.args[1] == ["firewall", "get_dmz", {}]
+
+
 async def test_firewall_set_wan_access_flips_only_given_toggles(glinet):
     # Read-modify-write: only the SSH toggle changes; the rest round-trips.
     glinet._transport.request.side_effect = [

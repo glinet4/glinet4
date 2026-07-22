@@ -50,18 +50,25 @@ class FirewallRoutes:
     async def firewall_set_dmz(self, *, enabled: bool, dest_ip: str | None = None) -> None:
         """Enable or disable the DMZ host.
 
-        When enabling without an explicit ``dest_ip``, the currently-configured
-        target (``dmz_ip`` from :meth:`firewall_dmz`) is reused, so a plain
-        toggle-on preserves the existing host. Note the asymmetry between the
-        read and write keys: the router reports the target as ``dmz_ip`` but
-        accepts it as ``dest_ip`` on the write. Disabling needs no target and
-        omits it. The acknowledgement carries nothing useful and is discarded;
-        confirm the change via :meth:`firewall_dmz`.
+        Enabling requires a target: when ``dest_ip`` is omitted, the
+        currently-configured host (``dmz_ip`` from :meth:`firewall_dmz`) is
+        reused, so a plain toggle-on preserves it; if neither is available a
+        :class:`ValueError` is raised rather than sending an ambiguous
+        enable-with-no-target. Note the asymmetry between the read and write
+        keys: the router reports the target as ``dmz_ip`` but accepts it as
+        ``dest_ip`` on the write. Disabling needs no target, so ``dest_ip`` is
+        ignored and only ``{"enabled": False}`` is sent. The acknowledgement
+        carries nothing useful and is discarded; confirm via :meth:`firewall_dmz`.
         """
-        if enabled and dest_ip is None:
-            dest_ip = (await self.firewall_dmz()).get("dmz_ip")
         params: dict[str, Any] = {"enabled": enabled}
-        if dest_ip:
+        if enabled:
+            if dest_ip is None:
+                dest_ip = (await self.firewall_dmz()).get("dmz_ip")
+            if not dest_ip:
+                raise ValueError(
+                    "enabling the DMZ requires a destination IP, but none was "
+                    "given and the router reports no current dmz_ip"
+                )
             params["dest_ip"] = dest_ip
         await self._transport.request(self._payload("call", ["firewall", "set_dmz", params]))
 
