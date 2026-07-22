@@ -467,6 +467,110 @@ async def test_led_set_enabled_merges_current_config(glinet):
     assert last_call.args == ("call", ["led", "set_config", {"led_enable": True}], "SID")
 
 
+async def test_firewall_set_dmz_enable_falls_back_to_current_ip(glinet):
+    # Enabling without an explicit IP reuses the currently-configured target.
+    glinet._transport.request.side_effect = [
+        {"enabled": False, "dmz_ip": "192.168.8.100"},  # firewall get_dmz
+        {},  # firewall set_dmz ack
+    ]
+    await glinet.firewall_set_dmz(enabled=True)
+    last_call = glinet._transport.build_sid_payload.call_args_list[-1]
+    assert last_call.args == (
+        "call",
+        ["firewall", "set_dmz", {"enabled": True, "dest_ip": "192.168.8.100"}],
+        "SID",
+    )
+
+
+async def test_firewall_set_dmz_disable_sends_only_enabled_without_reading(glinet):
+    glinet._transport.request.return_value = {}
+    await glinet.firewall_set_dmz(enabled=False)
+    # Disabling needs no target IP, so there is no read-back.
+    glinet._transport.request.assert_awaited_once()
+    last_call = glinet._transport.build_sid_payload.call_args_list[-1]
+    assert last_call.args == ("call", ["firewall", "set_dmz", {"enabled": False}], "SID")
+
+
+async def test_firewall_set_dmz_explicit_ip_skips_read(glinet):
+    glinet._transport.request.return_value = {}
+    await glinet.firewall_set_dmz(enabled=True, dest_ip="10.0.0.5")
+    glinet._transport.request.assert_awaited_once()
+    last_call = glinet._transport.build_sid_payload.call_args_list[-1]
+    assert last_call.args == (
+        "call",
+        ["firewall", "set_dmz", {"enabled": True, "dest_ip": "10.0.0.5"}],
+        "SID",
+    )
+
+
+async def test_firewall_set_dmz_disable_ignores_dest_ip(glinet):
+    # A dest_ip passed alongside disable is meaningless and must be dropped, so
+    # the write is unambiguously "turn the DMZ off".
+    glinet._transport.request.return_value = {}
+    await glinet.firewall_set_dmz(enabled=False, dest_ip="10.0.0.5")
+    glinet._transport.request.assert_awaited_once()
+    last_call = glinet._transport.build_sid_payload.call_args_list[-1]
+    assert last_call.args == ("call", ["firewall", "set_dmz", {"enabled": False}], "SID")
+
+
+async def test_firewall_set_dmz_enable_without_resolvable_target_raises(glinet):
+    # Enabling with neither an explicit IP nor a stored dmz_ip is an invalid
+    # write; raise instead of sending an ambiguous enable-with-no-target.
+    glinet._transport.request.return_value = {"enabled": False}  # get_dmz, no dmz_ip
+    with pytest.raises(ValueError, match="destination IP"):
+        await glinet.firewall_set_dmz(enabled=True)
+    # Only the get_dmz read may have happened; no set_dmz write.
+    glinet._transport.request.assert_awaited_once()
+    last_call = glinet._transport.build_sid_payload.call_args_list[-1]
+    assert last_call.args[1] == ["firewall", "get_dmz", {}]
+
+
+async def test_firewall_set_wan_access_flips_only_given_toggles(glinet):
+    # Read-modify-write: only the SSH toggle changes; the rest round-trips.
+    glinet._transport.request.side_effect = [
+        {
+            "enable_https": False,
+            "enable_ping": True,
+            "enable_ssh": False,
+            "enable_whitelist": False,
+            "whitelist": [],
+        },
+        {},
+    ]
+    await glinet.firewall_set_wan_access(ssh=True)
+    last_call = glinet._transport.build_sid_payload.call_args_list[-1]
+    assert last_call.args == (
+        "call",
+        [
+            "firewall",
+            "set_wan_access",
+            {
+                "enable_https": False,
+                "enable_ping": True,
+                "enable_ssh": True,
+                "enable_whitelist": False,
+                "whitelist": [],
+            },
+        ],
+        "SID",
+    )
+
+
+async def test_firewall_set_wan_access_preserves_unknown_keys(glinet):
+    # Echoing the router's own dict keeps firmware-specific keys we don't model.
+    glinet._transport.request.side_effect = [
+        {"enable_ssh": False, "some_future_key": 7},
+        {},
+    ]
+    await glinet.firewall_set_wan_access(https=True)
+    last_call = glinet._transport.build_sid_payload.call_args_list[-1]
+    assert last_call.args[1][2] == {
+        "enable_ssh": False,
+        "some_future_key": 7,
+        "enable_https": True,
+    }
+
+
 async def test_ping_fw49_replies_returns_true(glinet):
     glinet._transport.request_long_timeout.return_value = {
         "ping_result": (

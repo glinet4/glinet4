@@ -40,6 +40,8 @@ CATALOG_PATH = Path(__file__).parent / "data" / "rpc_catalog.json"
 KNOWN_UNCATALOGUED: set[tuple[str, str]] = {
     # --- write-risk RPCs: the capture only ever probes risk="read" methods ---
     ("black_white_list", "set_single_mac"),
+    ("firewall", "set_dmz"),
+    ("firewall", "set_wan_access"),
     ("flow_statistics", "clear_statistics"),
     ("flow_statistics", "set_statistics_rule"),
     ("led", "set_config"),
