@@ -380,9 +380,11 @@ async def test_fan_set_threshold() -> None:
     except NonZeroResponse:
         pytest.skip("router has no fan")
     changed = 80 if original != 80 else 75
-    await router.fan_set_threshold(changed)
-    assert (await router.fan_config())["temperature"] == changed
-    await router.fan_set_threshold(original)
+    try:
+        await router.fan_set_threshold(changed)
+        assert (await router.fan_config())["temperature"] == changed
+    finally:
+        await router.fan_set_threshold(original)
     assert (await router.fan_config())["temperature"] == original
 
 
