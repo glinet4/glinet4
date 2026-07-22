@@ -145,8 +145,8 @@ class ServicesRoutes:
         This is the block-list/allow-list mode toggle, not Parental Control
         itself (see :meth:`parental_control_config`) -- it backs
         :meth:`~glinet4.glinet.GLinet.client_set_blocked`'s per-MAC
-        block/unblock, which assumes ``mode`` is already ``"black"``; use
-        this getter to confirm that assumption instead of assuming it. See
+        block/unblock, which reads this ``mode`` to invert its add/remove
+        semantics correctly under whitelist mode. See
         :class:`~glinet4._types.ContentFilterConfig` for what is and isn't
         known about ``mode``'s accepted values.
         """

@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING, Any
 
-from .._types import Client, ClientsStatus, StaticClient, TrafficSpeed
+from .._types import Client, ClientsStatus, ContentFilterConfig, StaticClient, TrafficSpeed
 
 if TYPE_CHECKING:
     from .._transport import GLinetTransport
@@ -15,6 +15,9 @@ class ClientsRoutes:
         _transport: GLinetTransport
 
         def _payload(self, method: str, params: list[Any]) -> dict[str, Any]:
+            """Implemented by the composing :class:`glinet4.glinet.GLinet`."""
+
+        async def content_filter_config(self) -> ContentFilterConfig:
             """Implemented by the composing :class:`glinet4.glinet.GLinet`."""
 
     async def clients_speed(self) -> TrafficSpeed:
@@ -34,26 +37,33 @@ class ClientsRoutes:
     async def client_set_blocked(self, mac: str, *, blocked: bool) -> None:
         """Block or unblock a client's network access by MAC.
 
-        Adds (``blocked=True``) or removes (``blocked=False``) the MAC from the
-        router's black list and restarts the filter service. The client's
-        ``blocked`` flag (see :meth:`connected_clients`) reflects the new state
-        on the next poll. Assumes the black/white list is in ``black`` mode --
-        confirm with
-        :meth:`~glinet4.glinet.GLinet.content_filter_config` if unsure.
+        Reads the access-control list's active mode first, then adds or removes
+        the MAC accordingly. In the factory-default blacklist (``black``) mode a
+        listed MAC is *denied*, so blocking adds it; in whitelist (``white``)
+        mode a listed MAC is the only one *allowed*, so the add/remove semantics
+        invert -- blocking a client removes it from the list. The router
+        restarts the filter service on write. The client's ``blocked`` flag
+        (see :meth:`connected_clients`) reflects the new state on the next poll.
         The router's acknowledgement carries nothing useful and is discarded;
         confirm the change via :meth:`blocked_client_macs`.
         """
+        config = await self.content_filter_config()
+        # An absent mode is treated as the factory-default blacklist.
+        mode = config.get("mode") or "black"
+        # In whitelist mode a listed MAC is allowed, so blocking must remove it
+        # (and unblocking must add it) -- the reverse of blacklist mode.
+        listed_means_allowed = mode == "white"
+        if listed_means_allowed:
+            operate = "del" if blocked else "add"
+        else:
+            operate = "add" if blocked else "del"
         await self._transport.request(
             self._payload(
                 "call",
                 [
                     "black_white_list",
                     "set_single_mac",
-                    {
-                        "mode": "black",
-                        "operate": "add" if blocked else "del",
-                        "mac": mac,
-                    },
+                    {"mode": mode, "operate": operate, "mac": mac},
                 ],
             )
         )
