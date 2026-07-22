@@ -371,6 +371,35 @@ async def test_firewall_rule_list() -> None:
     assert isinstance(rules, list)
 
 
+@disruptive
+async def test_firewall_set_wan_access() -> None:
+    """Flip the WAN SSH exposure and restore it."""
+    original = (await router.firewall_wan_access())["enable_ssh"]
+    await router.firewall_set_wan_access(ssh=not original)
+    assert (await router.firewall_wan_access())["enable_ssh"] != original
+    await router.firewall_set_wan_access(ssh=original)
+    assert (await router.firewall_wan_access())["enable_ssh"] == original
+
+
+@disruptive
+async def test_firewall_set_dmz() -> None:
+    """Toggle the DMZ and restore its original state."""
+    original = await router.firewall_dmz()
+    was_enabled = original["enabled"]
+    if was_enabled:
+        # Turn it off, then back on (reusing the stored target IP).
+        await router.firewall_set_dmz(enabled=False)
+        assert (await router.firewall_dmz())["enabled"] is False
+        await router.firewall_set_dmz(enabled=True)
+        assert (await router.firewall_dmz())["enabled"] is True
+    else:
+        # Enable against a throwaway target, then restore the disabled state.
+        await router.firewall_set_dmz(enabled=True, dest_ip="192.168.8.222")
+        assert (await router.firewall_dmz())["enabled"] is True
+        await router.firewall_set_dmz(enabled=False)
+        assert (await router.firewall_dmz())["enabled"] is False
+
+
 async def test_firmware_check_online() -> None:
     """Test checking online for a firmware update."""
     check = await router.firmware_check_online()
