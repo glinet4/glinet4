@@ -15,6 +15,7 @@ from semver import Version
 
 from ._routes import (
     ClientsRoutes,
+    FanRoutes,
     FirewallRoutes,
     NetworkRoutes,
     ServicesRoutes,
@@ -40,6 +41,7 @@ class GLinet(
     ServicesRoutes,
     FirewallRoutes,
     NetworkRoutes,
+    FanRoutes,
 ):
     """A Python client for the GL.iNet API (API/protocol layer).
 

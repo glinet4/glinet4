@@ -40,6 +40,8 @@ CATALOG_PATH = Path(__file__).parent / "data" / "rpc_catalog.json"
 KNOWN_UNCATALOGUED: set[tuple[str, str]] = {
     # --- write-risk RPCs: the capture only ever probes risk="read" methods ---
     ("black_white_list", "set_single_mac"),
+    ("fan", "set_config"),
+    ("fan", "set_test"),
     ("firewall", "set_dmz"),
     ("firewall", "set_wan_access"),
     ("flow_statistics", "clear_statistics"),
@@ -52,6 +54,11 @@ KNOWN_UNCATALOGUED: set[tuple[str, str]] = {
     ("wg-client", "start"),
     ("wg-client", "stop"),
     ("wifi", "set_config"),
+    # --- fan reads: the mt6000 capture's per-service candidate list doesn't
+    # probe the `fan` service, so its read RPCs are absent even though they
+    # exist on fan-equipped hardware (the Flint 2) ---
+    ("fan", "get_config"),
+    ("fan", "get_status"),
     # --- real read RPCs outside the capture tool's fixed per-service probe-name list ---
     ("cable", "get_ports_status"),
     ("clients", "get_speed"),

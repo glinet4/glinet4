@@ -8,6 +8,7 @@ the composing ``GLinet`` class and declared on each mixin under
 """
 
 from .clients import ClientsRoutes
+from .fan import FanRoutes
 from .firewall import FirewallRoutes
 from .network import NetworkRoutes
 from .services import ServicesRoutes
@@ -19,6 +20,7 @@ from .wifi import WifiRoutes
 
 __all__ = [
     "ClientsRoutes",
+    "FanRoutes",
     "FirewallRoutes",
     "NetworkRoutes",
     "ServicesRoutes",

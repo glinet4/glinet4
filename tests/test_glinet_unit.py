@@ -402,6 +402,49 @@ async def test_blocked_client_macs_filters_blocked(glinet):
     assert await glinet.blocked_client_macs() == {"AA", "CC"}
 
 
+async def test_fan_set_threshold_sends_temperature(glinet):
+    glinet._transport.request.return_value = {}
+    await glinet.fan_set_threshold(80)
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call",
+        ["fan", "set_config", {"temperature": 80}],
+        "SID",
+    )
+
+
+@pytest.mark.parametrize("temperature", [70, 80, 90])
+async def test_fan_set_threshold_accepts_range_bounds(glinet, temperature):
+    glinet._transport.request.return_value = {}
+    await glinet.fan_set_threshold(temperature)
+    last_call = glinet._transport.build_sid_payload.call_args_list[-1]
+    assert last_call.args[1][2] == {"temperature": temperature}
+
+
+@pytest.mark.parametrize("temperature", [69, 91, 0, 200])
+async def test_fan_set_threshold_rejects_out_of_range(glinet, temperature):
+    with pytest.raises(ValueError, match="between 70 and 90"):
+        await glinet.fan_set_threshold(temperature)
+    # A rejected value must never reach the router.
+    glinet._transport.request.assert_not_awaited()
+
+
+async def test_fan_self_test_defaults_to_ten_seconds(glinet):
+    glinet._transport.request.return_value = {}
+    await glinet.fan_self_test()
+    glinet._transport.build_sid_payload.assert_called_once_with(
+        "call",
+        ["fan", "set_test", {"test": True, "time": 10}],
+        "SID",
+    )
+
+
+async def test_fan_self_test_accepts_custom_duration(glinet):
+    glinet._transport.request.return_value = {}
+    await glinet.fan_self_test(duration=5)
+    last_call = glinet._transport.build_sid_payload.call_args_list[-1]
+    assert last_call.args[1] == ["fan", "set_test", {"test": True, "time": 5}]
+
+
 async def test_flow_stats_set_enabled_sends_full_rule(glinet):
     glinet._transport.request.return_value = []
     await glinet.flow_stats_set_enabled(enabled=True)
