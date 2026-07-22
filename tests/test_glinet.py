@@ -157,18 +157,20 @@ async def test_wifi_ifaces() -> None:
 
 @disruptive
 async def test_wifi_ifaces_set_enabled() -> None:
-    """Test enabling/disabling a WiFi interface."""
-
+    """Test enabling/disabling a WiFi interface, restoring the original state."""
     wifi_ifaces = await router.wifi_ifaces()
     iface = next(iter(wifi_ifaces.values()))
+    name = iface.get("name")
     iface_enabled = iface.get("enabled")
 
-    await router.wifi_iface_set_enabled(iface.get("name"), enabled=not iface_enabled)
-    await asyncio.sleep(1)
-
-    wifi_ifaces2 = await router.wifi_ifaces()
-    iface_enabled_after = wifi_ifaces2.get(iface.get("name")).get("enabled")
-    assert iface_enabled_after != iface_enabled
+    try:
+        await router.wifi_iface_set_enabled(name, enabled=not iface_enabled)
+        await asyncio.sleep(1)
+        wifi_ifaces2 = await router.wifi_ifaces()
+        assert wifi_ifaces2.get(name).get("enabled") != iface_enabled
+    finally:
+        # Previously this test left the interface flipped; always restore it.
+        await router.wifi_iface_set_enabled(name, enabled=iface_enabled)
 
 
 async def test_wan_upstream_router_detected() -> None:
@@ -334,9 +336,11 @@ async def test_led_config() -> None:
 async def test_led_set_enabled() -> None:
     """Test toggling the LEDs and restoring the original state."""
     original = (await router.led_config())["led_enable"]
-    await router.led_set_enabled(enabled=not original)
-    assert (await router.led_config())["led_enable"] != original
-    await router.led_set_enabled(enabled=original)
+    try:
+        await router.led_set_enabled(enabled=not original)
+        assert (await router.led_config())["led_enable"] != original
+    finally:
+        await router.led_set_enabled(enabled=original)
     assert (await router.led_config())["led_enable"] == original
 
 
@@ -373,31 +377,37 @@ async def test_firewall_rule_list() -> None:
 
 @disruptive
 async def test_firewall_set_wan_access() -> None:
-    """Flip the WAN SSH exposure and restore it."""
+    """Flip the WAN SSH exposure and restore it (restore guaranteed on failure)."""
     original = (await router.firewall_wan_access())["enable_ssh"]
-    await router.firewall_set_wan_access(ssh=not original)
-    assert (await router.firewall_wan_access())["enable_ssh"] != original
-    await router.firewall_set_wan_access(ssh=original)
+    try:
+        await router.firewall_set_wan_access(ssh=not original)
+        assert (await router.firewall_wan_access())["enable_ssh"] != original
+    finally:
+        await router.firewall_set_wan_access(ssh=original)
     assert (await router.firewall_wan_access())["enable_ssh"] == original
 
 
 @disruptive
 async def test_firewall_set_dmz() -> None:
-    """Toggle the DMZ and restore its original state."""
+    """Toggle the DMZ and restore both its enabled flag and original target."""
     original = await router.firewall_dmz()
     was_enabled = original["enabled"]
-    if was_enabled:
-        # Turn it off, then back on (reusing the stored target IP).
-        await router.firewall_set_dmz(enabled=False)
-        assert (await router.firewall_dmz())["enabled"] is False
-        await router.firewall_set_dmz(enabled=True)
-        assert (await router.firewall_dmz())["enabled"] is True
-    else:
-        # Enable against a throwaway target, then restore the disabled state.
-        await router.firewall_set_dmz(enabled=True, dest_ip="192.168.8.222")
-        assert (await router.firewall_dmz())["enabled"] is True
-        await router.firewall_set_dmz(enabled=False)
-        assert (await router.firewall_dmz())["enabled"] is False
+    # Reuse the stored target so a disabled-DMZ router isn't left with a
+    # foreign dmz_ip; fall back to a throwaway only if none is configured.
+    original_ip = original.get("dmz_ip")
+    try:
+        if was_enabled:
+            await router.firewall_set_dmz(enabled=False)
+            assert (await router.firewall_dmz())["enabled"] is False
+        else:
+            await router.firewall_set_dmz(enabled=True, dest_ip=original_ip or "192.168.8.222")
+            assert (await router.firewall_dmz())["enabled"] is True
+    finally:
+        if was_enabled:
+            await router.firewall_set_dmz(enabled=True, dest_ip=original_ip)
+        else:
+            await router.firewall_set_dmz(enabled=False)
+    assert (await router.firewall_dmz())["enabled"] is was_enabled
 
 
 async def test_firmware_check_online() -> None:
