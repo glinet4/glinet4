@@ -344,6 +344,50 @@ async def test_led_set_enabled() -> None:
     assert (await router.led_config())["led_enable"] == original
 
 
+async def test_fan_status() -> None:
+    """Fan running state and speed (skips on a fanless model)."""
+    try:
+        status = await router.fan_status()
+    except NonZeroResponse:
+        pytest.skip("router has no fan")
+    print(status)
+    assert isinstance(status, dict)
+
+
+async def test_fan_config() -> None:
+    """Fan temperature thresholds (skips on a fanless model)."""
+    try:
+        config = await router.fan_config()
+    except NonZeroResponse:
+        pytest.skip("router has no fan")
+    print(config)
+    assert isinstance(config, dict)
+
+
+async def test_fan_self_test() -> None:
+    """Spin the fan briefly. Harmless and self-limiting, so not gated."""
+    try:
+        await router.fan_self_test(duration=5)
+    except NonZeroResponse:
+        pytest.skip("router has no fan")
+
+
+@disruptive
+async def test_fan_set_threshold() -> None:
+    """Set the fan threshold to a different valid value and restore it."""
+    try:
+        original = (await router.fan_config())["temperature"]
+    except NonZeroResponse:
+        pytest.skip("router has no fan")
+    changed = 80 if original != 80 else 75
+    try:
+        await router.fan_set_threshold(changed)
+        assert (await router.fan_config())["temperature"] == changed
+    finally:
+        await router.fan_set_threshold(original)
+    assert (await router.fan_config())["temperature"] == original
+
+
 async def test_firewall_port_forward_list() -> None:
     """Test retrieving port-forward rules."""
     rules = await router.firewall_port_forward_list()

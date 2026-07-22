@@ -977,3 +977,28 @@ class ContentFilterConfig(TypedDict, total=False):
     """
 
     mode: str
+
+
+class FanStatus(TypedDict, total=False):
+    """``fan get_status`` — the fan's running state and speed.
+
+    ``status`` is truthy while the fan is spinning; ``speed`` is the current
+    speed in RPM. Only present on models with a controllable fan (e.g. the
+    Flint 2) -- a fanless model answers ``fan get_status`` with a JSON-RPC
+    method-not-found error.
+    """
+
+    status: bool
+    speed: int
+
+
+class FanConfig(TypedDict, total=False):
+    """``fan get_config`` — the fan's temperature thresholds.
+
+    ``temperature`` is the activation threshold (degrees C) set via
+    :meth:`~glinet4.glinet.GLinet.fan_set_threshold`; ``warn_temperature`` is
+    the high-temperature warning point. Both are model-specific.
+    """
+
+    temperature: int
+    warn_temperature: int

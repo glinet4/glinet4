@@ -840,6 +840,17 @@ CASES: list[RouteCase] = [
         ["sqm", "get_config"],
         {"download": 100, "enable": False, "qdisc": "fq_codel", "upload": 40},
     ),
+    # --- fan ------------------------------------------------------------
+    _a(
+        "fan_status",
+        ["fan", "get_status", {}],
+        {"status": True, "speed": 1000},
+    ),
+    _a(
+        "fan_config",
+        ["fan", "get_config", {}],
+        {"temperature": 75, "warn_temperature": 90},
+    ),
 ]
 
 
