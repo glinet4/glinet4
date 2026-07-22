@@ -345,32 +345,50 @@ async def test_tailscale_connection_state_handles_status_missing(glinet):
     assert await glinet.tailscale_connection_state() == TailscaleConnection.DISCONNECTED
 
 
-async def test_client_set_blocked_true_adds_to_black_list(glinet):
-    glinet._transport.request.return_value = []
+@pytest.mark.parametrize(
+    ("mode", "blocked", "expected_operate"),
+    [
+        # Blacklist mode: a listed MAC is denied, so blocking adds it.
+        ("black", True, "add"),
+        ("black", False, "del"),
+        # Whitelist mode: a listed MAC is the only one *allowed*, so the
+        # add/del semantics invert -- blocking removes it from the list.
+        ("white", True, "del"),
+        ("white", False, "add"),
+    ],
+)
+async def test_client_set_blocked_respects_list_mode(glinet, mode, blocked, expected_operate):
+    # content_filter_config() is read first, then the set_single_mac write.
+    glinet._transport.request.side_effect = [{"mode": mode}, []]
+    await glinet.client_set_blocked("AA:BB:CC:DD:EE:FF", blocked=blocked)
+    last_call = glinet._transport.build_sid_payload.call_args_list[-1]
+    assert last_call.args[0] == "call"
+    assert last_call.args[1] == [
+        "black_white_list",
+        "set_single_mac",
+        {"mode": mode, "operate": expected_operate, "mac": "AA:BB:CC:DD:EE:FF"},
+    ]
+
+
+async def test_client_set_blocked_reads_active_mode_first(glinet):
+    # The mode must be read from the router, not assumed.
+    glinet._transport.request.side_effect = [{"mode": "white"}, []]
     await glinet.client_set_blocked("AA:BB:CC:DD:EE:FF", blocked=True)
-    glinet._transport.build_sid_payload.assert_called_once_with(
-        "call",
-        [
-            "black_white_list",
-            "set_single_mac",
-            {"mode": "black", "operate": "add", "mac": "AA:BB:CC:DD:EE:FF"},
-        ],
-        "SID",
-    )
+    first_call = glinet._transport.build_sid_payload.call_args_list[0]
+    assert first_call.args[1] == ["black_white_list", "get_config", {}]
 
 
-async def test_client_set_blocked_false_removes_from_black_list(glinet):
-    glinet._transport.request.return_value = []
-    await glinet.client_set_blocked("AA:BB:CC:DD:EE:FF", blocked=False)
-    glinet._transport.build_sid_payload.assert_called_once_with(
-        "call",
-        [
-            "black_white_list",
-            "set_single_mac",
-            {"mode": "black", "operate": "del", "mac": "AA:BB:CC:DD:EE:FF"},
-        ],
-        "SID",
-    )
+async def test_client_set_blocked_defaults_to_blacklist_when_mode_absent(glinet):
+    # A router that returns no `mode` is treated as the factory-default
+    # blacklist, preserving the historical behaviour.
+    glinet._transport.request.side_effect = [{}, []]
+    await glinet.client_set_blocked("AA:BB:CC:DD:EE:FF", blocked=True)
+    last_call = glinet._transport.build_sid_payload.call_args_list[-1]
+    assert last_call.args[1][2] == {
+        "mode": "black",
+        "operate": "add",
+        "mac": "AA:BB:CC:DD:EE:FF",
+    }
 
 
 async def test_blocked_client_macs_filters_blocked(glinet):

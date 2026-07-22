@@ -967,12 +967,13 @@ class ContentFilterConfig(TypedDict, total=False):
 
     Named for the RPC it wraps (``black_white_list``), not "parental
     control": this is the block-list/allow-list mode toggle that backs
-    :meth:`~glinet4.glinet.GLinet.client_set_blocked`. A real fw-4.9 device
-    returns ``"black"``, which is also the value that method hardcodes when
-    adding or removing a MAC. The router publishes no schema for ``mode``,
-    so the full set of accepted values is unknown -- an allow-list
-    counterpart is plausible but unconfirmed. Treat ``mode`` as an opaque
-    router-defined string, not a documented enum.
+    :meth:`~glinet4.glinet.GLinet.client_set_blocked`, which reads this
+    ``mode`` to pick the correct add/remove semantics. A real fw-4.9 device
+    returns ``"black"``; the whitelist counterpart is ``"white"``. The router
+    publishes no schema for ``mode``, so the full set of accepted values is
+    unknown -- any value other than ``"white"`` is treated as blacklist
+    semantics. Treat ``mode`` as an opaque router-defined string, not a
+    documented enum.
     """
 
     mode: str
