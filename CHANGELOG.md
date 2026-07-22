@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.2.5](https://github.com/glinet4/glinet4/compare/v0.2.4...v0.2.5) (2026-07-22)
+
+
+### Features
+
+* add firewall DMZ and WAN-access write methods (part of [#44](https://github.com/glinet4/glinet4/issues/44)) ([#52](https://github.com/glinet4/glinet4/issues/52)) ([91a6a1b](https://github.com/glinet4/glinet4/commit/91a6a1b26c6ab7add4d06371822b718e31a680e7))
+* wrap the fan service (status, threshold, self-test) ([#51](https://github.com/glinet4/glinet4/issues/51)) ([b68c450](https://github.com/glinet4/glinet4/commit/b68c4509cde161b72e6cef681ce71e9466d32aba))
+
+
+### Bug Fixes
+
+* make client blocking mode-aware (whitelist routers were inverted) ([#50](https://github.com/glinet4/glinet4/issues/50)) ([4d13973](https://github.com/glinet4/glinet4/commit/4d1397313f52197fafb50ea8dd65320523d4654e))
+
+
+### Documentation
+
+* use the theme-blind logo in the README header ([#37](https://github.com/glinet4/glinet4/issues/37)) ([fb64848](https://github.com/glinet4/glinet4/commit/fb64848fd2f3106b4523af2e731d73d4bf844740))
+
 ## [0.2.4](https://github.com/glinet4/glinet4/compare/v0.2.3...v0.2.4) (2026-07-13)
 
 
